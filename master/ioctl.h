@@ -441,6 +441,7 @@ typedef struct {
     // inputs
     uint16_t slave_position;
     uint16_t offset;
+    uint32_t timeout;
     size_t buffer_size;
     uint8_t *buffer;
 

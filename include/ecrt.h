@@ -1015,6 +1015,47 @@ EC_PUBLIC_API int ecrt_master_sdo_upload_complete(
         uint32_t *abort_code /**< Abort code of the SDO upload. */
         );
 
+/** Executes an FoE read request to read a file from a slave.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_foe_read(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        const char *file_name, /**< File name on the slave. */
+        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        uint8_t *target, /**< Target buffer for the upload. */
+        size_t target_size, /**< Size of the target buffer. */
+        size_t *result_size, /**< Uploaded data size. */
+        uint32_t *result, /**< FoE result code. */
+        uint32_t *error_code /**< FoE error code. */
+        );
+
+/** Executes an FoE write request to write a file to a slave.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_foe_write(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        const char *file_name, /**< File name on the slave. */
+        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        const uint8_t *data, /**< Data to write. */
+        size_t data_size, /**< Size of data to write. */
+        uint32_t *result, /**< FoE result code. */
+        uint32_t *error_code /**< FoE error code. */
+        );
+
 /** Executes an SoE write request.
  *
  * Starts writing an IDN and blocks until the request was processed, or an

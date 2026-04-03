@@ -530,6 +530,71 @@ int ecrt_master_sdo_upload_complete(ec_master_t *master,
 
 /****************************************************************************/
 
+int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        uint8_t *target, size_t target_size,
+        size_t *result_size, uint32_t *result, uint32_t *error_code)
+{
+    ec_ioctl_slave_foe_t io;
+    int ret;
+
+    io.slave_position = slave_position;
+    io.offset = 0;
+    io.timeout = timeout;
+    io.buffer_size = target_size;
+    io.buffer = target;
+    strncpy(io.file_name, file_name, sizeof(io.file_name) - 1);
+    io.file_name[sizeof(io.file_name) - 1] = 0;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_FOE_READ, &io);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        if (result) *result = io.result;
+        if (error_code) *error_code = io.error_code;
+        fprintf(stderr, "Failed to execute FoE read: %s\n",
+                strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    *result_size = io.data_size;
+    if (result) *result = io.result;
+    if (error_code) *error_code = io.error_code;
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        const uint8_t *data, size_t data_size,
+        uint32_t *result, uint32_t *error_code)
+{
+    ec_ioctl_slave_foe_t io;
+    int ret;
+
+    io.slave_position = slave_position;
+    io.offset = 0;
+    io.timeout = timeout;
+    io.buffer_size = data_size;
+    io.buffer = (uint8_t *) data;
+    strncpy(io.file_name, file_name, sizeof(io.file_name) - 1);
+    io.file_name[sizeof(io.file_name) - 1] = 0;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_FOE_WRITE, &io);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        if (result) *result = io.result;
+        if (error_code) *error_code = io.error_code;
+        fprintf(stderr, "Failed to execute FoE write: %s\n",
+                strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    if (result) *result = io.result;
+    if (error_code) *error_code = io.error_code;
+    return 0;
+}
+
+/****************************************************************************/
+
 int ecrt_master_write_idn(ec_master_t *master, uint16_t slave_position,
         uint8_t drive_no, uint16_t idn, const uint8_t *data, size_t data_size,
         uint16_t *error_code)

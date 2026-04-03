@@ -4613,7 +4613,10 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
     }
 
     ec_foe_request_init(&request, io.file_name);
-    ret = ec_foe_request_alloc(&request, 10000); // FIXME
+    if (io.timeout) {
+        request.response_timeout = io.timeout;
+    }
+    ret = ec_foe_request_alloc(&request, io.buffer_size);
     if (ret) {
         ec_foe_request_clear(&request);
         return ret;
@@ -4709,6 +4712,9 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
     }
 
     ec_foe_request_init(&request, io.file_name);
+    if (io.timeout) {
+        request.response_timeout = io.timeout;
+    }
 
     ret = ec_foe_request_alloc(&request, io.buffer_size);
     if (ret) {

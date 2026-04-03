@@ -363,6 +363,34 @@ int ecrt_master_sdo_upload(
     return 0;
 }
 
+int ecrt_master_foe_read(
+        ec_master_t *master,
+        uint16_t slave_position,
+        const char *file_name,
+        uint32_t timeout,
+        uint8_t *target,
+        size_t target_size,
+        size_t *result_size,
+        uint32_t *result,
+        uint32_t *error_code)
+{
+    *result_size = 0;
+    return 0;
+}
+
+int ecrt_master_foe_write(
+        ec_master_t *master,
+        uint16_t slave_position,
+        const char *file_name,
+        uint32_t timeout,
+        const uint8_t *data,
+        size_t data_size,
+        uint32_t *result,
+        uint32_t *error_code)
+{
+    return 0;
+}
+
 int ecrt_master_sdo_upload_complete(
         ec_master_t *master,     /**< EtherCAT master. */
         uint16_t slave_position, /**< Slave position. */
