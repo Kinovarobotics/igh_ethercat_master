@@ -948,6 +948,12 @@ ec_datagram_t *ec_master_get_external_datagram(
             master->ext_ring_idx_rt) {
         ec_datagram_t *datagram =
             &master->ext_datagram_ring[master->ext_ring_idx_fsm];
+        /* Record the queued time for ec_master_inject_external_datagrams */
+#ifdef EC_HAVE_CYCLES
+        datagram->cycles_sent = get_cycles();
+#endif
+        datagram->jiffies_sent = jiffies;
+
         return datagram;
     }
     else {
@@ -2398,6 +2404,7 @@ int ecrt_master_deactivate(ec_master_t *master)
 
     if (!master->active) {
         EC_MASTER_WARN(master, "%s: Master not active.\n", __func__);
+        ec_master_clear_config(master);
         return -EINVAL;
     }
 
