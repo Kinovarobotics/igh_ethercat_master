@@ -149,23 +149,7 @@ enum {
     EC_MBOX_VOE = 0x20  /**< Vendor specific */
 };
 
-/** Slave information interface CANopen over EtherCAT details flags.
- */
-typedef struct {
-    uint8_t enable_sdo : 1; /**< Enable SDO access. */
-    uint8_t enable_sdo_info : 1; /**< SDO information service available. */
-    uint8_t enable_pdo_assign : 1; /**< PDO mapping configurable. */
-    uint8_t enable_pdo_configuration : 1; /**< PDO configuration possible. */
-    uint8_t enable_upload_at_startup : 1; /**< ?. */
-    uint8_t enable_sdo_complete_access : 1; /**< Complete access possible. */
-} ec_sii_coe_details_t;
-
-/** Slave information interface general flags.
- */
-typedef struct {
-    uint8_t enable_safeop : 1; /**< ?. */
-    uint8_t enable_not_lrw : 1; /**< Slave does not support LRW. */
-} ec_sii_general_flags_t;
+/* ec_sii_coe_details_t and ec_sii_general_flags_t are defined in ecrt.h */
 
 /** EtherCAT slave distributed clocks range.
  */

@@ -2756,6 +2756,10 @@ int ecrt_master_get_slave(ec_master_t *master, uint16_t slave_position,
     } else {
         slave_info->name[0] = 0;
     }
+    slave_info->mailbox_protocols = slave->sii.mailbox_protocols;
+    slave_info->has_general_category = slave->sii.has_general;
+    slave_info->coe_details = slave->sii.coe_details;
+    slave_info->general_flags = slave->sii.general_flags;
 
 out_get_slave:
     up(&master->master_sem);
