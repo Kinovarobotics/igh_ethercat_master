@@ -164,13 +164,17 @@
  */
 #define ECRT_VER_MINOR 6
 
+/** EtherCAT realtime interface patch version number.
+ */
+#define ECRT_VER_PATCH 1
+
 /** EtherCAT realtime interface version word generator.
  */
-#define ECRT_VERSION(a, b) (((a) << 8) + (b))
+#define ECRT_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
 
 /** EtherCAT realtime interface version word.
  */
-#define ECRT_VERSION_MAGIC ECRT_VERSION(ECRT_VER_MAJOR, ECRT_VER_MINOR)
+#define ECRT_VERSION_MAGIC ECRT_VERSION(ECRT_VER_MAJOR, ECRT_VER_MINOR, ECRT_VER_PATCH)
 
 /*****************************************************************************
  * Feature flags
