@@ -109,6 +109,7 @@ LIBETHERCAT_1.6 {
 		ecrt_master_foe_read;
 		ecrt_master_foe_write;
 		ecrt_master_scan_progress;
+		ecrt_master_set_states;
 		ecrt_master_sdo_upload_complete;
 		ecrt_sdo_request_index_complete;
 		ecrt_sdo_request_write_with_size;

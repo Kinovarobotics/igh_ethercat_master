@@ -1080,6 +1080,21 @@ EC_PUBLIC_API int ecrt_master_foe_write(
         uint32_t *error_code /**< FoE error code. */
         );
 
+/** Request an AL state transition for all slaves on the bus.
+ *
+ * This sets the requested state for every slave. The master state machine
+ * will then process the transitions asynchronously.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_set_states(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint8_t al_state /**< Requested AL state. */
+        );
+
 /** Executes an SoE write request.
  *
  * Starts writing an IDN and blocks until the request was processed, or an

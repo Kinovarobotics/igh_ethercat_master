@@ -363,6 +363,11 @@ int ecrt_master_sdo_upload(
     return 0;
 }
 
+int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
+{
+    return 0;
+}
+
 int ecrt_master_foe_read(
         ec_master_t *master,
         uint16_t slave_position,

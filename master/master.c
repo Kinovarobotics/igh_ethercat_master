@@ -3243,6 +3243,23 @@ int ecrt_master_sdo_upload_complete(ec_master_t *master,
 
 /****************************************************************************/
 
+int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
+{
+    unsigned int i;
+
+    if (down_interruptible(&master->master_sem))
+        return -EINTR;
+
+    for (i = 0; i < master->slave_count; i++) {
+        ec_slave_request_state(&master->slaves[i], al_state);
+    }
+
+    up(&master->master_sem);
+    return 0;
+}
+
+/****************************************************************************/
+
 int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
         const char *file_name, uint32_t timeout,
         uint8_t *target, size_t target_size,
@@ -3614,6 +3631,7 @@ EXPORT_SYMBOL(ecrt_master_sdo_download);
 EXPORT_SYMBOL(ecrt_master_sdo_download_complete);
 EXPORT_SYMBOL(ecrt_master_sdo_upload);
 EXPORT_SYMBOL(ecrt_master_sdo_upload_complete);
+EXPORT_SYMBOL(ecrt_master_set_states);
 EXPORT_SYMBOL(ecrt_master_foe_read);
 EXPORT_SYMBOL(ecrt_master_foe_write);
 EXPORT_SYMBOL(ecrt_master_write_idn);
