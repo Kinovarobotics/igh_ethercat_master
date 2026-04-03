@@ -24,6 +24,7 @@ LIBETHERCAT_1.5.2 {
 		ecrt_master_sdo_download;
 		ecrt_master_sdo_download_complete;
 		ecrt_master_sdo_upload;
+		ecrt_master_sdo_upload_complete;
 		ecrt_master_select_reference_clock;
 		ecrt_master_send;
 		ecrt_master_set_send_interval;
@@ -44,13 +45,16 @@ LIBETHERCAT_1.5.2 {
 		ecrt_sdo_request_data;
 		ecrt_sdo_request_data_size;
 		ecrt_sdo_request_index;
+		ecrt_sdo_request_index_complete;
 		ecrt_sdo_request_read;
 		ecrt_sdo_request_state;
 		ecrt_sdo_request_timeout;
 		ecrt_sdo_request_write;
+		ecrt_sdo_request_write_with_size;
 		ecrt_slave_config_complete_sdo;
 		ecrt_slave_config_create_reg_request;
 		ecrt_slave_config_create_sdo_request;
+		ecrt_slave_config_create_sdo_request_complete;
 		ecrt_slave_config_create_soe_request;
 		ecrt_slave_config_create_voe_handler;
 		ecrt_slave_config_dc;

@@ -390,6 +390,7 @@ typedef struct {
     uint16_t slave_position;
     uint16_t sdo_index;
     uint8_t sdo_entry_subindex;
+    uint8_t complete_access;
     size_t target_size;
     uint8_t *target;
 
@@ -778,6 +779,7 @@ typedef struct {
     uint32_t request_index;
     uint16_t sdo_index;
     uint8_t sdo_subindex;
+    uint8_t complete_access;
     size_t size;
     uint8_t *data;
     uint32_t timeout;

@@ -995,6 +995,26 @@ EC_PUBLIC_API int ecrt_master_sdo_upload(
         uint32_t *abort_code /**< Abort code of the SDO upload. */
         );
 
+/** Executes an SDO upload request to read data from a slave via complete
+ * access.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_sdo_upload_complete(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        uint16_t index, /**< Index of the SDO. */
+        uint8_t *target, /**< Target buffer for the upload. */
+        size_t target_size, /**< Size of the target buffer. */
+        size_t *result_size, /**< Uploaded data size. */
+        uint32_t *abort_code /**< Abort code of the SDO upload. */
+        );
+
 /** Executes an SoE write request.
  *
  * Starts writing an IDN and blocks until the request was processed, or an
@@ -1821,6 +1841,23 @@ EC_PUBLIC_API ec_sdo_request_t *ecrt_slave_config_create_sdo_request(
         size_t size /**< Data size to reserve. */
         );
 
+/** Create an SDO request to exchange SDOs during realtime operation
+ *  using complete access.
+ *
+ * The created SDO request object is freed automatically when the master is
+ * released.
+ *
+ * This method has to be called in non-realtime context before
+ * ecrt_master_activate().
+ *
+ * \return New SDO request, or NULL on error.
+ */
+EC_PUBLIC_API ec_sdo_request_t *ecrt_slave_config_create_sdo_request_complete(
+        ec_slave_config_t *sc, /**< Slave configuration. */
+        uint16_t index, /**< SDO index. */
+        size_t size /**< Data size to reserve. */
+        );
+
 /** Create an SoE request to exchange SoE IDNs during realtime operation.
  *
  * The created SoE request object is freed automatically when the master is
@@ -2288,6 +2325,20 @@ EC_PUBLIC_API int ecrt_sdo_request_index(
         uint8_t subindex /**< SDO subindex. */
         );
 
+/** Set the SDO index and prepare for complete-access.
+ *
+ * This is valid even if the request was not created for complete-access.
+ *
+ * \attention If the SDO index is changed while ecrt_sdo_request_state()
+ * returns EC_REQUEST_BUSY, this may lead to unexpected results.
+ *
+ * \return 0 on success, otherwise negative error code.
+ */
+EC_PUBLIC_API int ecrt_sdo_request_index_complete(
+        ec_sdo_request_t *req, /**< SDO request. */
+        uint16_t index /**< SDO index. */
+        );
+
 /** Set the timeout for an SDO request.
  *
  * If the request cannot be processed in the specified time, if will be marked
@@ -2397,6 +2448,19 @@ EC_PUBLIC_API ec_request_state_t ecrt_sdo_request_state(
  */
 EC_PUBLIC_API int ecrt_sdo_request_write(
         ec_sdo_request_t *req /**< SDO request. */
+        );
+
+/** Schedule an SDO write operation with a specific size.
+ *
+ * \attention This method may not be called while ecrt_sdo_request_state()
+ * returns EC_REQUEST_BUSY.
+ *
+ * \attention The size must be less than or equal to the size specified
+ * when the request was created.
+ */
+EC_PUBLIC_API void ecrt_sdo_request_write_with_size(
+        ec_sdo_request_t *req, /**< SDO request. */
+        size_t size /**< Size of data to write. */
         );
 
 /** Schedule an SDO read operation.
