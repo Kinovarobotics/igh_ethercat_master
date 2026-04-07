@@ -1057,6 +1057,7 @@ EC_PUBLIC_API int ecrt_master_foe_read(
         ec_master_t *master, /**< EtherCAT master. */
         uint16_t slave_position, /**< Slave position. */
         const char *file_name, /**< File name on the slave. */
+        uint32_t password, /**< FoE password (0 = no password). */
         uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
         uint8_t *target, /**< Target buffer for the upload. */
         size_t target_size, /**< Size of the target buffer. */
@@ -1078,6 +1079,7 @@ EC_PUBLIC_API int ecrt_master_foe_write(
         ec_master_t *master, /**< EtherCAT master. */
         uint16_t slave_position, /**< Slave position. */
         const char *file_name, /**< File name on the slave. */
+        uint32_t password, /**< FoE password (0 = no password). */
         uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
         const uint8_t *data, /**< Data to write. */
         size_t data_size, /**< Size of data to write. */

@@ -4622,6 +4622,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
         return ret;
     }
 
+    request.password = io.password;
     ec_foe_request_read(&request);
 
     if (down_interruptible(&master->master_sem)) {
@@ -4729,6 +4730,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
     }
 
     request.data_size = io.buffer_size;
+    request.password = io.password;
     ec_foe_request_write(&request);
 
     if (down_interruptible(&master->master_sem)) {
