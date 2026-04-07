@@ -564,7 +564,7 @@ int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
 /****************************************************************************/
 
 int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
-        const char *file_name, uint32_t timeout,
+        const char *file_name, uint32_t password, uint32_t timeout,
         uint8_t *target, size_t target_size,
         size_t *result_size, uint32_t *result, uint32_t *error_code)
 {
@@ -573,6 +573,7 @@ int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
 
     io.slave_position = slave_position;
     io.offset = 0;
+    io.password = password;
     io.timeout = timeout;
     io.buffer_size = target_size;
     io.buffer = target;
@@ -597,7 +598,7 @@ int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
 /****************************************************************************/
 
 int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
-        const char *file_name, uint32_t timeout,
+        const char *file_name, uint32_t password, uint32_t timeout,
         const uint8_t *data, size_t data_size,
         uint32_t *result, uint32_t *error_code)
 {
@@ -606,6 +607,7 @@ int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
 
     io.slave_position = slave_position;
     io.offset = 0;
+    io.password = password;
     io.timeout = timeout;
     io.buffer_size = data_size;
     io.buffer = (uint8_t *) data;
