@@ -363,6 +363,53 @@ int ecrt_master_sdo_upload(
     return 0;
 }
 
+int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
+{
+    return 0;
+}
+
+int ecrt_master_foe_read(
+        ec_master_t *master,
+        uint16_t slave_position,
+        const char *file_name,
+        uint32_t timeout,
+        uint8_t *target,
+        size_t target_size,
+        size_t *result_size,
+        uint32_t *result,
+        uint32_t *error_code)
+{
+    *result_size = 0;
+    return 0;
+}
+
+int ecrt_master_foe_write(
+        ec_master_t *master,
+        uint16_t slave_position,
+        const char *file_name,
+        uint32_t timeout,
+        const uint8_t *data,
+        size_t data_size,
+        uint32_t *result,
+        uint32_t *error_code)
+{
+    return 0;
+}
+
+int ecrt_master_sdo_upload_complete(
+        ec_master_t *master,     /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        uint16_t index,          /**< Index of the SDO. */
+        uint8_t *target,         /**< Target buffer for the upload. */
+        size_t target_size,      /**< Size of the target buffer. */
+        size_t *result_size,     /**< Uploaded data size. */
+        uint32_t *abort_code     /**< Abort code of the SDO upload. */
+)
+{
+    *result_size = 0;
+    return 0;
+}
+
 int ecrt_master_write_idn(
         ec_master_t *master,     /**< EtherCAT master. */
         uint16_t slave_position, /**< Slave position. */
@@ -947,6 +994,15 @@ ec_sdo_request_t *ecrt_slave_config_create_sdo_request(
     return nullptr;
 }
 
+ec_sdo_request_t *ecrt_slave_config_create_sdo_request_complete(
+        ec_slave_config_t *sc, /**< Slave configuration. */
+        uint16_t index,        /**< SDO index. */
+        size_t size            /**< Data size to reserve. */
+)
+{
+    return nullptr;
+}
+
 ec_soe_request_t *ecrt_slave_config_create_soe_request(
         ec_slave_config_t *sc, /**< Slave configuration. */
         uint8_t drive_no,      /**< Drive number. */
@@ -1255,6 +1311,14 @@ int ecrt_sdo_request_index(
     return 0;
 }
 
+int ecrt_sdo_request_index_complete(
+        ec_sdo_request_t *req, /**< SDO request. */
+        uint16_t index         /**< SDO index. */
+)
+{
+    return 0;
+}
+
 int ecrt_sdo_request_timeout(
         ec_sdo_request_t *req, /**< SDO request. */
         uint32_t timeout       /**< Timeout in milliseconds. Zero
@@ -1289,6 +1353,10 @@ int ecrt_sdo_request_write(ec_sdo_request_t *req /**< SDO request. */
 )
 {
     return 0;
+}
+
+void ecrt_sdo_request_write_with_size(ec_sdo_request_t *req, size_t size)
+{
 }
 
 int ecrt_sdo_request_read(ec_sdo_request_t *req /**< SDO request. */

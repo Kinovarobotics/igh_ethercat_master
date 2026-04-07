@@ -359,9 +359,10 @@ void ec_fsm_foe_state_ack_check(
         // slave did not put anything in the mailbox yet
         unsigned long diff_ms = (fsm->datagram->jiffies_received -
                 fsm->jiffies_start) * 1000 / HZ;
-        if (diff_ms >= EC_FSM_FOE_TIMEOUT) {
+        if (diff_ms >= fsm->request->response_timeout) {
             ec_foe_set_tx_error(fsm, FOE_TIMEOUT_ERROR);
-            EC_SLAVE_ERR(slave, "Timeout while waiting for ack response.\n");
+            EC_SLAVE_ERR(slave, "Timeout after %lu ms while waiting"
+                    " for ack response.\n", diff_ms);
             return;
         }
 
@@ -698,9 +699,10 @@ void ec_fsm_foe_state_data_check(
     if (!ec_slave_mbox_check(fsm->datagram)) {
         unsigned long diff_ms = (fsm->datagram->jiffies_received -
                 fsm->jiffies_start) * 1000 / HZ;
-        if (diff_ms >= EC_FSM_FOE_TIMEOUT) {
+        if (diff_ms >= fsm->request->response_timeout) {
             ec_foe_set_tx_error(fsm, FOE_TIMEOUT_ERROR);
-            EC_SLAVE_ERR(slave, "Timeout while waiting for ack response.\n");
+            EC_SLAVE_ERR(slave, "Timeout after %lu ms while waiting"
+                    " for ack response.\n", diff_ms);
             return;
         }
 

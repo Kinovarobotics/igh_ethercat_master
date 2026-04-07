@@ -79,6 +79,7 @@ do { \
 #endif
 
 #include "master.h"
+#include "foe_request.h"
 
 /****************************************************************************/
 
@@ -948,6 +949,12 @@ ec_datagram_t *ec_master_get_external_datagram(
             master->ext_ring_idx_rt) {
         ec_datagram_t *datagram =
             &master->ext_datagram_ring[master->ext_ring_idx_fsm];
+        /* Record the queued time for ec_master_inject_external_datagrams */
+#ifdef EC_HAVE_CYCLES
+        datagram->cycles_sent = get_cycles();
+#endif
+        datagram->jiffies_sent = jiffies;
+
         return datagram;
     }
     else {
@@ -2227,36 +2234,6 @@ void ec_master_calc_dc(
     ec_master_calc_transmission_delays(master);
 }
 
-/****************************************************************************/
-
-/** Request OP state for configured slaves.
- */
-void ec_master_request_op(
-        ec_master_t *master /**< EtherCAT master. */
-        )
-{
-    unsigned int i;
-    ec_slave_t *slave;
-
-    if (!master->active)
-        return;
-
-    EC_MASTER_DBG(master, 1, "Requesting OP...\n");
-
-    // request OP for all configured slaves
-    for (i = 0; i < master->slave_count; i++) {
-        slave = master->slaves + i;
-        if (slave->config) {
-            ec_slave_request_state(slave, EC_SLAVE_STATE_OP);
-        }
-    }
-
-    // always set DC reference clock to OP
-    if (master->dc_ref_clock) {
-        ec_slave_request_state(master->dc_ref_clock, EC_SLAVE_STATE_OP);
-    }
-}
-
 /*****************************************************************************
  *  Application interface
  ****************************************************************************/
@@ -2398,6 +2375,7 @@ int ecrt_master_deactivate(ec_master_t *master)
 
     if (!master->active) {
         EC_MASTER_WARN(master, "%s: Master not active.\n", __func__);
+        ec_master_clear_config(master);
         return -EINVAL;
     }
 
@@ -2748,6 +2726,10 @@ int ecrt_master_get_slave(ec_master_t *master, uint16_t slave_position,
     } else {
         slave_info->name[0] = 0;
     }
+    slave_info->mailbox_protocols = slave->sii.mailbox_protocols;
+    slave_info->has_general_category = slave->sii.has_general;
+    slave_info->coe_details = slave->sii.coe_details;
+    slave_info->general_flags = slave->sii.general_flags;
 
 out_get_slave:
     up(&master->master_sem);
@@ -2999,14 +2981,13 @@ int ecrt_master_sdo_download_complete(ec_master_t *master,
             abort_code);
 
     ec_sdo_request_init(&request);
-    ecrt_sdo_request_index(&request, index, 0);
+    ecrt_sdo_request_index_complete(&request, index);
     ret = ec_sdo_request_alloc(&request, data_size);
     if (ret) {
         ec_sdo_request_clear(&request);
         return ret;
     }
 
-    request.complete_access = 1;
     memcpy(request.data, data, data_size);
     request.data_size = data_size;
     ecrt_sdo_request_write(&request);
@@ -3143,6 +3124,256 @@ int ecrt_master_sdo_upload(ec_master_t *master, uint16_t slave_position,
     }
 
     ec_sdo_request_clear(&request);
+    return ret;
+}
+
+/****************************************************************************/
+
+int ecrt_master_sdo_upload_complete(ec_master_t *master,
+        uint16_t slave_position, uint16_t index, uint8_t *target,
+        size_t target_size, size_t *result_size, uint32_t *abort_code)
+{
+    ec_sdo_request_t request;
+    ec_slave_t *slave;
+    int ret = 0;
+
+    EC_MASTER_DBG(master, 1, "%s(master = 0x%p,"
+            " slave_position = %u, index = 0x%04X,"
+            " target = 0x%p, target_size = %zu, result_size = 0x%p,"
+            " abort_code = 0x%p)\n",
+            __func__, master, slave_position, index,
+            target, target_size, result_size, abort_code);
+
+    ec_sdo_request_init(&request);
+    ecrt_sdo_request_index_complete(&request, index);
+    ecrt_sdo_request_read(&request);
+
+    if (down_interruptible(&master->master_sem)) {
+        ec_sdo_request_clear(&request);
+        return -EINTR;
+    }
+
+    if (!(slave = ec_master_find_slave(master, 0, slave_position))) {
+        up(&master->master_sem);
+        ec_sdo_request_clear(&request);
+        EC_MASTER_ERR(master, "Slave %u does not exist!\n", slave_position);
+        return -EINVAL;
+    }
+
+    EC_SLAVE_DBG(slave, 1, "Scheduling SDO upload request"
+            " (complete access).\n");
+
+    // schedule request.
+    list_add_tail(&request.list, &slave->sdo_requests);
+
+    up(&master->master_sem);
+
+    // wait for processing through FSM
+    if (wait_event_interruptible(master->request_queue,
+                request.state != EC_INT_REQUEST_QUEUED)) {
+        // interrupted by signal
+        down(&master->master_sem);
+        if (request.state == EC_INT_REQUEST_QUEUED) {
+            list_del(&request.list);
+            up(&master->master_sem);
+            ec_sdo_request_clear(&request);
+            return -EINTR;
+        }
+        // request already processing: interrupt not possible.
+        up(&master->master_sem);
+    }
+
+    // wait until master FSM has finished processing
+    wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+
+    *abort_code = request.abort_code;
+
+    if (request.state != EC_INT_REQUEST_SUCCESS) {
+        *result_size = 0;
+        if (request.errno) {
+            ret = -request.errno;
+        } else {
+            ret = -EIO;
+        }
+    } else {
+        if (request.data_size > target_size) {
+            EC_MASTER_ERR(master, "Buffer too small.\n");
+            ret = -EOVERFLOW;
+        }
+        else {
+            memcpy(target, request.data, request.data_size);
+            *result_size = request.data_size;
+            ret = 0;
+        }
+    }
+
+    ec_sdo_request_clear(&request);
+    return ret;
+}
+
+/****************************************************************************/
+
+int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
+{
+    unsigned int i;
+
+    if (down_interruptible(&master->master_sem))
+        return -EINTR;
+
+    for (i = 0; i < master->slave_count; i++) {
+        ec_slave_request_state(&master->slaves[i], al_state);
+    }
+
+    up(&master->master_sem);
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        uint8_t *target, size_t target_size,
+        size_t *result_size, uint32_t *result, uint32_t *error_code)
+{
+    ec_foe_request_t request;
+    ec_slave_t *slave;
+    int ret = 0;
+
+    ec_foe_request_init(&request, (uint8_t *) file_name);
+    if (timeout) {
+        request.response_timeout = timeout;
+    }
+    ret = ec_foe_request_alloc(&request, target_size);
+    if (ret) {
+        ec_foe_request_clear(&request);
+        return ret;
+    }
+
+    ec_foe_request_read(&request);
+
+    if (down_interruptible(&master->master_sem)) {
+        ec_foe_request_clear(&request);
+        return -EINTR;
+    }
+
+    if (!(slave = ec_master_find_slave(master, 0, slave_position))) {
+        up(&master->master_sem);
+        ec_foe_request_clear(&request);
+        EC_MASTER_ERR(master, "Slave %u does not exist!\n", slave_position);
+        return -EINVAL;
+    }
+
+    // schedule request.
+    list_add_tail(&request.list, &slave->foe_requests);
+
+    up(&master->master_sem);
+
+    // wait for processing through FSM
+    if (wait_event_interruptible(master->request_queue,
+                request.state != EC_INT_REQUEST_QUEUED)) {
+        // interrupted by signal
+        down(&master->master_sem);
+        if (request.state == EC_INT_REQUEST_QUEUED) {
+            list_del(&request.list);
+            up(&master->master_sem);
+            ec_foe_request_clear(&request);
+            return -EINTR;
+        }
+        // request already processing: interrupt not possible.
+        up(&master->master_sem);
+    }
+
+    // wait until master FSM has finished processing
+    wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+
+    *result = request.result;
+    *error_code = request.error_code;
+
+    if (request.state != EC_INT_REQUEST_SUCCESS) {
+        *result_size = 0;
+        ret = -EIO;
+    } else {
+        if (request.data_size > target_size) {
+            EC_MASTER_ERR(master, "FoE read: buffer too small.\n");
+            ret = -EOVERFLOW;
+        } else {
+            memcpy(target, request.buffer, request.data_size);
+            *result_size = request.data_size;
+            ret = 0;
+        }
+    }
+
+    ec_foe_request_clear(&request);
+    return ret;
+}
+
+/****************************************************************************/
+
+int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        const uint8_t *data, size_t data_size,
+        uint32_t *result, uint32_t *error_code)
+{
+    ec_foe_request_t request;
+    ec_slave_t *slave;
+    int ret = 0;
+
+    ec_foe_request_init(&request, (uint8_t *) file_name);
+    if (timeout) {
+        request.response_timeout = timeout;
+    }
+    ret = ec_foe_request_alloc(&request, data_size);
+    if (ret) {
+        ec_foe_request_clear(&request);
+        return ret;
+    }
+
+    memcpy(request.buffer, data, data_size);
+    request.data_size = data_size;
+    ec_foe_request_write(&request);
+
+    if (down_interruptible(&master->master_sem)) {
+        ec_foe_request_clear(&request);
+        return -EINTR;
+    }
+
+    if (!(slave = ec_master_find_slave(master, 0, slave_position))) {
+        up(&master->master_sem);
+        ec_foe_request_clear(&request);
+        EC_MASTER_ERR(master, "Slave %u does not exist!\n", slave_position);
+        return -EINVAL;
+    }
+
+    // schedule FoE write request.
+    list_add_tail(&request.list, &slave->foe_requests);
+
+    up(&master->master_sem);
+
+    // wait for processing through FSM
+    if (wait_event_interruptible(master->request_queue,
+                request.state != EC_INT_REQUEST_QUEUED)) {
+        // interrupted by signal
+        down(&master->master_sem);
+        if (request.state == EC_INT_REQUEST_QUEUED) {
+            list_del(&request.list);
+            up(&master->master_sem);
+            ec_foe_request_clear(&request);
+            return -EINTR;
+        }
+        up(&master->master_sem);
+    }
+
+    // wait until master FSM has finished processing
+    wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+
+    *result = request.result;
+    *error_code = request.error_code;
+
+    if (request.state != EC_INT_REQUEST_SUCCESS) {
+        ret = -EIO;
+    }
+
+    ec_foe_request_clear(&request);
     return ret;
 }
 
@@ -3369,6 +3600,10 @@ EXPORT_SYMBOL(ecrt_master_sync_monitor_process);
 EXPORT_SYMBOL(ecrt_master_sdo_download);
 EXPORT_SYMBOL(ecrt_master_sdo_download_complete);
 EXPORT_SYMBOL(ecrt_master_sdo_upload);
+EXPORT_SYMBOL(ecrt_master_sdo_upload_complete);
+EXPORT_SYMBOL(ecrt_master_set_states);
+EXPORT_SYMBOL(ecrt_master_foe_read);
+EXPORT_SYMBOL(ecrt_master_foe_write);
 EXPORT_SYMBOL(ecrt_master_write_idn);
 EXPORT_SYMBOL(ecrt_master_read_idn);
 EXPORT_SYMBOL(ecrt_master_reset);

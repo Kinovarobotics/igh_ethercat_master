@@ -842,9 +842,15 @@ static ATTRIBUTES int ec_ioctl_slave_sdo_upload(
         return -ENOMEM;
     }
 
-    ret = ecrt_master_sdo_upload(master, data.slave_position,
-            data.sdo_index, data.sdo_entry_subindex, target,
-            data.target_size, &data.data_size, &data.abort_code);
+    if (data.complete_access) {
+        ret = ecrt_master_sdo_upload_complete(master, data.slave_position,
+                data.sdo_index, target, data.target_size,
+                &data.data_size, &data.abort_code);
+    } else {
+        ret = ecrt_master_sdo_upload(master, data.slave_position,
+                data.sdo_index, data.sdo_entry_subindex, target,
+                data.target_size, &data.data_size, &data.abort_code);
+    }
 
     if (!ret) {
         if (copy_to_user((void __user *) data.target,
@@ -3018,7 +3024,7 @@ static ATTRIBUTES int ec_ioctl_sc_create_sdo_request(
     up(&master->master_sem); /** \todo sc could be invalidated */
 
     req = ecrt_slave_config_create_sdo_request_err(sc, data.sdo_index,
-            data.sdo_subindex, data.size);
+            data.sdo_subindex, data.complete_access, data.size);
     if (IS_ERR(req))
         return PTR_ERR(req);
 
@@ -3642,7 +3648,11 @@ static ATTRIBUTES int ec_ioctl_sdo_request_index(
         return -ENOENT;
     }
 
-    return ecrt_sdo_request_index(req, data.sdo_index, data.sdo_subindex);
+    if (data.complete_access) {
+        return ecrt_sdo_request_index_complete(req, data.sdo_index);
+    } else {
+        return ecrt_sdo_request_index(req, data.sdo_index, data.sdo_subindex);
+    }
 }
 
 /****************************************************************************/
@@ -4603,7 +4613,10 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
     }
 
     ec_foe_request_init(&request, io.file_name);
-    ret = ec_foe_request_alloc(&request, 10000); // FIXME
+    if (io.timeout) {
+        request.response_timeout = io.timeout;
+    }
+    ret = ec_foe_request_alloc(&request, io.buffer_size);
     if (ret) {
         ec_foe_request_clear(&request);
         return ret;
@@ -4699,6 +4712,9 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
     }
 
     ec_foe_request_init(&request, io.file_name);
+    if (io.timeout) {
+        request.response_timeout = io.timeout;
+    }
 
     ret = ec_foe_request_alloc(&request, io.buffer_size);
     if (ret) {

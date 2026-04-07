@@ -33,6 +33,15 @@
 
 #include "fsm_slave_scan.h"
 
+/** Time to wait before slave scan retry [ms].
+ *
+ * Used to calculate time based on the jiffies counter.
+ *
+ * \attention Must be more than 10 to avoid problems on kernels that run with
+ * a timer interupt frequency of 100 Hz.
+ */
+#define SCAN_RETRY_TIME 100
+
 /****************************************************************************/
 
 // prototypes for private methods
@@ -69,6 +78,8 @@ void ec_fsm_slave_scan_state_pdos(ec_fsm_slave_scan_t *);
 
 void ec_fsm_slave_scan_state_end(ec_fsm_slave_scan_t *);
 void ec_fsm_slave_scan_state_error(ec_fsm_slave_scan_t *);
+void ec_fsm_slave_scan_state_retry(ec_fsm_slave_scan_t *);
+void ec_fsm_slave_scan_state_retry_wait(ec_fsm_slave_scan_t *);
 
 /****************************************************************************/
 
@@ -112,6 +123,7 @@ void ec_fsm_slave_scan_start(
         )
 {
     fsm->slave = slave;
+    fsm->scan_retries = EC_FSM_RETRIES;
     fsm->state = ec_fsm_slave_scan_state_start;
 }
 
@@ -588,13 +600,21 @@ void ec_fsm_slave_scan_state_sii_size(
         return;
 
     if (!ec_fsm_sii_success(&fsm->fsm_sii)) {
-        fsm->slave->error_flag = 1;
-        fsm->state = ec_fsm_slave_scan_state_error;
-        EC_SLAVE_ERR(slave, "Failed to determine SII content size:"
-                " Reading word offset 0x%04x failed. Assuming %u words.\n",
-                fsm->sii_offset, EC_FIRST_SII_CATEGORY_OFFSET);
-        slave->sii_nwords = EC_FIRST_SII_CATEGORY_OFFSET;
-        goto alloc_sii;
+        if (fsm->scan_retries--) {
+            EC_SLAVE_ERR(slave, "Failed to determine SII content size."
+                    " Retrying.\n");
+            fsm->state = ec_fsm_slave_scan_state_retry;
+            return;
+        } else {
+            fsm->slave->error_flag = 1;
+            fsm->state = ec_fsm_slave_scan_state_error;
+            EC_SLAVE_ERR(slave, "Failed to determine SII content size:"
+                    " Reading word offset 0x%04x failed."
+                    " Assuming %u words.\n",
+                    fsm->sii_offset, EC_FIRST_SII_CATEGORY_OFFSET);
+            slave->sii_nwords = EC_FIRST_SII_CATEGORY_OFFSET;
+            goto alloc_sii;
+        }
     }
 
     cat_type = EC_READ_U16(fsm->fsm_sii.value);
@@ -663,9 +683,13 @@ void ec_fsm_slave_scan_state_sii_data(ec_fsm_slave_scan_t *fsm
     if (ec_fsm_sii_exec(&fsm->fsm_sii)) return;
 
     if (!ec_fsm_sii_success(&fsm->fsm_sii)) {
-        fsm->slave->error_flag = 1;
-        fsm->state = ec_fsm_slave_scan_state_error;
         EC_SLAVE_ERR(slave, "Failed to fetch SII contents.\n");
+        if (fsm->scan_retries--) {
+            fsm->state = ec_fsm_slave_scan_state_retry;
+        } else {
+            fsm->slave->error_flag = 1;
+            fsm->state = ec_fsm_slave_scan_state_error;
+        }
         return;
     }
 
@@ -701,6 +725,21 @@ void ec_fsm_slave_scan_state_sii_data(ec_fsm_slave_scan_t *fsm
         EC_READ_U32(slave->sii_words + 0x000C);
     slave->sii.serial_number =
         EC_READ_U32(slave->sii_words + 0x000E);
+
+    // check for invalid vendor id and product code
+    if ((slave->sii.vendor_id == 0) ||
+            (slave->sii.product_code == 0)) {
+        EC_SLAVE_ERR(slave, "Failed to determine product and vendor id."
+                " SII returned a zero value.\n");
+        if (fsm->scan_retries--) {
+            fsm->state = ec_fsm_slave_scan_state_retry;
+        } else {
+            fsm->slave->error_flag = 1;
+            fsm->state = ec_fsm_slave_scan_state_error;
+        }
+        return;
+    }
+
     slave->sii.boot_rx_mailbox_offset =
         EC_READ_U16(slave->sii_words + 0x0014);
     slave->sii.boot_rx_mailbox_size =
@@ -1094,6 +1133,39 @@ void ec_fsm_slave_scan_state_pdos(
 
     // reading PDO configuration finished
     fsm->state = ec_fsm_slave_scan_state_end;
+}
+
+/****************************************************************************/
+
+/** Slave scan state: scan retry.
+ */
+void ec_fsm_slave_scan_state_retry(
+        ec_fsm_slave_scan_t *fsm /**< slave state machine */
+        )
+{
+    ec_slave_t *slave = fsm->slave;
+
+    fsm->scan_jiffies_start = jiffies;
+    fsm->state = ec_fsm_slave_scan_state_retry_wait;
+    EC_SLAVE_WARN(slave, "Retrying slave scan.\n");
+    return;
+}
+
+/****************************************************************************/
+
+/** Slave scan state: scan retry wait.
+ */
+void ec_fsm_slave_scan_state_retry_wait(
+        ec_fsm_slave_scan_t *fsm /**< slave state machine */
+        )
+{
+    // wait for timeout
+    unsigned long diff_ms =
+        (jiffies - fsm->scan_jiffies_start) * 1000 / HZ;
+
+    if (diff_ms >= SCAN_RETRY_TIME) {
+        fsm->state = ec_fsm_slave_scan_state_start;
+    }
 }
 
 /*****************************************************************************

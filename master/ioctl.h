@@ -47,7 +47,7 @@
  *
  * Increment this when changing the ioctl interface!
  */
-#define EC_IOCTL_VERSION_MAGIC 37
+#define EC_IOCTL_VERSION_MAGIC 0x0137
 
 // Command-line tool
 #define EC_IOCTL_MODULE                EC_IOR(0x00, ec_ioctl_module_t)
@@ -390,6 +390,7 @@ typedef struct {
     uint16_t slave_position;
     uint16_t sdo_index;
     uint8_t sdo_entry_subindex;
+    uint8_t complete_access;
     size_t target_size;
     uint8_t *target;
 
@@ -440,6 +441,7 @@ typedef struct {
     // inputs
     uint16_t slave_position;
     uint16_t offset;
+    uint32_t timeout;
     size_t buffer_size;
     uint8_t *buffer;
 
@@ -778,6 +780,7 @@ typedef struct {
     uint32_t request_index;
     uint16_t sdo_index;
     uint8_t sdo_subindex;
+    uint8_t complete_access;
     size_t size;
     uint8_t *data;
     uint32_t timeout;

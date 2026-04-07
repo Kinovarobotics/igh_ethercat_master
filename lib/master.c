@@ -311,6 +311,10 @@ int ecrt_master_get_slave(ec_master_t *master, uint16_t slave_position,
     slave_info->sync_count = data.sync_count;
     slave_info->sdo_count = data.sdo_count;
     strncpy(slave_info->name, data.name, EC_MAX_STRING_LENGTH);
+    slave_info->mailbox_protocols = data.mailbox_protocols;
+    slave_info->has_general_category = data.has_general_category;
+    slave_info->coe_details = data.coe_details;
+    slave_info->general_flags = data.general_flags;
     return 0;
 }
 
@@ -480,6 +484,7 @@ int ecrt_master_sdo_upload(ec_master_t *master, uint16_t slave_position,
     upload.slave_position = slave_position;
     upload.sdo_index = index;
     upload.sdo_entry_subindex = subindex;
+    upload.complete_access = 0;
     upload.target_size = target_size;
     upload.target = target;
 
@@ -494,6 +499,130 @@ int ecrt_master_sdo_upload(ec_master_t *master, uint16_t slave_position,
     }
 
     *result_size = upload.data_size;
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_sdo_upload_complete(ec_master_t *master,
+        uint16_t slave_position, uint16_t index, uint8_t *target,
+        size_t target_size, size_t *result_size, uint32_t *abort_code)
+{
+    ec_ioctl_slave_sdo_upload_t upload;
+    int ret;
+
+    upload.slave_position = slave_position;
+    upload.sdo_index = index;
+    upload.sdo_entry_subindex = 0;
+    upload.complete_access = 1;
+    upload.target_size = target_size;
+    upload.target = target;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_SDO_UPLOAD, &upload);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        if (EC_IOCTL_ERRNO(ret) == EIO && abort_code) {
+            *abort_code = upload.abort_code;
+        }
+        fprintf(stderr, "Failed to execute SDO upload: %s\n",
+                strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    *result_size = upload.data_size;
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
+{
+    ec_master_info_t master_info;
+    int ret;
+    unsigned int i;
+
+    ret = ecrt_master(master, &master_info);
+    if (ret) {
+        return ret;
+    }
+
+    for (i = 0; i < master_info.slave_count; i++) {
+        ec_ioctl_slave_state_t data;
+        data.slave_position = i;
+        data.al_state = al_state;
+
+        ret = ioctl(master->fd, EC_IOCTL_SLAVE_STATE, &data);
+        if (EC_IOCTL_IS_ERROR(ret)) {
+            fprintf(stderr, "Failed to set state for slave %u: %s\n",
+                    i, strerror(EC_IOCTL_ERRNO(ret)));
+            return -EC_IOCTL_ERRNO(ret);
+        }
+    }
+
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        uint8_t *target, size_t target_size,
+        size_t *result_size, uint32_t *result, uint32_t *error_code)
+{
+    ec_ioctl_slave_foe_t io;
+    int ret;
+
+    io.slave_position = slave_position;
+    io.offset = 0;
+    io.timeout = timeout;
+    io.buffer_size = target_size;
+    io.buffer = target;
+    strncpy(io.file_name, file_name, sizeof(io.file_name) - 1);
+    io.file_name[sizeof(io.file_name) - 1] = 0;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_FOE_READ, &io);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        if (result) *result = io.result;
+        if (error_code) *error_code = io.error_code;
+        fprintf(stderr, "Failed to execute FoE read: %s\n",
+                strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    *result_size = io.data_size;
+    if (result) *result = io.result;
+    if (error_code) *error_code = io.error_code;
+    return 0;
+}
+
+/****************************************************************************/
+
+int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
+        const char *file_name, uint32_t timeout,
+        const uint8_t *data, size_t data_size,
+        uint32_t *result, uint32_t *error_code)
+{
+    ec_ioctl_slave_foe_t io;
+    int ret;
+
+    io.slave_position = slave_position;
+    io.offset = 0;
+    io.timeout = timeout;
+    io.buffer_size = data_size;
+    io.buffer = (uint8_t *) data;
+    strncpy(io.file_name, file_name, sizeof(io.file_name) - 1);
+    io.file_name[sizeof(io.file_name) - 1] = 0;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_FOE_WRITE, &io);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        if (result) *result = io.result;
+        if (error_code) *error_code = io.error_code;
+        fprintf(stderr, "Failed to execute FoE write: %s\n",
+                strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    if (result) *result = io.result;
+    if (error_code) *error_code = io.error_code;
     return 0;
 }
 

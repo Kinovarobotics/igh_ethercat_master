@@ -31,6 +31,15 @@
 #include "master.h"
 #include "fsm_sii.h"
 
+/** EEPROM load timeout [ms].
+ *
+ * Used to calculate timeouts based on the jiffies counter.
+ *
+ * \attention Must be more than 10 to avoid problems on kernels that run with
+ * a timer interupt frequency of 100 Hz.
+ */
+#define SII_LOAD_TIMEOUT 500
+
 /** Read/write timeout [ms].
  *
  * Used to calculate timeouts bsed on the jiffies counter.
@@ -217,6 +226,7 @@ void ec_fsm_sii_state_read_check(
 
     fsm->jiffies_start = datagram->jiffies_sent;
     fsm->check_once_more = 1;
+    fsm->eeprom_load_retry = 0;
 
     // issue check/fetch datagram
     switch (fsm->mode) {
@@ -273,6 +283,43 @@ void ec_fsm_sii_state_read_fetch(
         EC_SLAVE_ERR(fsm->slave, "Error on last command while"
                 " reading from SII word 0x%04x.\n", fsm->word_offset);
         fsm->state = ec_fsm_sii_state_error;
+        return;
+    }
+
+    // check "EEPROM Loading bit"
+    if (EC_READ_U8(datagram->data + 1) & 0x10) { /* EEPROM not loaded */
+        unsigned long diff_ms;
+
+        if (fsm->eeprom_load_retry == 0) {
+            fsm->eeprom_load_retry = 1;
+            EC_SLAVE_WARN(fsm->slave,
+                    "SII Read Error, EEPROM not loaded.  Retrying...\n");
+        }
+
+        // EEPROM still not loaded... timeout?
+        // May be due to an EEPROM load error
+        diff_ms =
+            (datagram->jiffies_received - fsm->jiffies_start) * 1000 / HZ;
+        if (diff_ms >= SII_LOAD_TIMEOUT) {
+            if (fsm->check_once_more) {
+                fsm->check_once_more = 0;
+            } else {
+                EC_SLAVE_ERR(fsm->slave,
+                        "SII Error: Timeout waiting for EEPROM to load.\n");
+                fsm->state = ec_fsm_sii_state_error;
+                return;
+            }
+        }
+
+        // issue check/fetch datagram again
+        fsm->retries = EC_FSM_RETRIES;
+        return;
+    } else if (fsm->eeprom_load_retry) {
+        fsm->eeprom_load_retry = 0;
+        EC_SLAVE_INFO(fsm->slave, "SII EEPROM loaded.  Continuing.\n");
+
+        // start reading SII value again
+        fsm->state = ec_fsm_sii_state_start_reading;
         return;
     }
 

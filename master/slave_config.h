@@ -180,7 +180,7 @@ ec_voe_handler_t *ec_slave_config_find_voe_handler(ec_slave_config_t *,
 ec_flag_t *ec_slave_config_find_flag(ec_slave_config_t *, const char *);
 
 ec_sdo_request_t *ecrt_slave_config_create_sdo_request_err(
-        ec_slave_config_t *, uint16_t, uint8_t, size_t);
+        ec_slave_config_t *, uint16_t, uint8_t, uint8_t, size_t);
 ec_soe_request_t *ecrt_slave_config_create_soe_request_err(
         ec_slave_config_t *, uint8_t, uint16_t, size_t);
 ec_voe_handler_t *ecrt_slave_config_create_voe_handler_err(

@@ -164,13 +164,17 @@
  */
 #define ECRT_VER_MINOR 6
 
+/** EtherCAT realtime interface patch version number.
+ */
+#define ECRT_VER_PATCH 1
+
 /** EtherCAT realtime interface version word generator.
  */
-#define ECRT_VERSION(a, b) (((a) << 8) + (b))
+#define ECRT_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
 
 /** EtherCAT realtime interface version word.
  */
-#define ECRT_VERSION_MAGIC ECRT_VERSION(ECRT_VER_MAJOR, ECRT_VER_MINOR)
+#define ECRT_VERSION_MAGIC ECRT_VERSION(ECRT_VER_MAJOR, ECRT_VER_MINOR, ECRT_VER_PATCH)
 
 /*****************************************************************************
  * Feature flags
@@ -442,6 +446,26 @@ typedef struct {
 
 /****************************************************************************/
 
+/** SII CoE detail flags.
+ */
+typedef struct {
+    uint8_t enable_sdo : 1; /**< Enable SDO access. */
+    uint8_t enable_sdo_info : 1; /**< SDO information service available. */
+    uint8_t enable_pdo_assign : 1; /**< PDO mapping configurable. */
+    uint8_t enable_pdo_configuration : 1; /**< PDO configuration possible. */
+    uint8_t enable_upload_at_startup : 1; /**< Upload at startup. */
+    uint8_t enable_sdo_complete_access : 1; /**< Complete access possible. */
+} ec_sii_coe_details_t;
+
+/** SII general flags.
+ */
+typedef struct {
+    uint8_t enable_safeop : 1; /**< Enable SafeOp. */
+    uint8_t enable_not_lrw : 1; /**< Slave does not support LRW. */
+} ec_sii_general_flags_t;
+
+/****************************************************************************/
+
 /** Slave information.
  *
  * This is used as an output parameter of ecrt_master_get_slave().
@@ -470,6 +494,10 @@ typedef struct {
     uint8_t sync_count; /**< Number of sync managers. */
     uint16_t sdo_count; /**< Number of SDOs. */
     char name[EC_MAX_STRING_LENGTH]; /**< Name of the slave. */
+    uint16_t mailbox_protocols; /**< Supported mailbox protocols. */
+    uint8_t has_general_category; /**< SII general category present. */
+    ec_sii_coe_details_t coe_details; /**< CoE detail flags from SII. */
+    ec_sii_general_flags_t general_flags; /**< General flags from SII. */
 } ec_slave_info_t;
 
 /****************************************************************************/
@@ -615,6 +643,7 @@ typedef enum {
 typedef enum {
     EC_AL_STATE_INIT = 1, /**< Init. */
     EC_AL_STATE_PREOP = 2, /**< Pre-operational. */
+    EC_AL_STATE_BOOT = 3, /**< Bootstrap. */
     EC_AL_STATE_SAFEOP = 4, /**< Safe-operational. */
     EC_AL_STATE_OP = 8, /**< Operational. */
 } ec_al_state_t;
@@ -993,6 +1022,82 @@ EC_PUBLIC_API int ecrt_master_sdo_upload(
         size_t target_size, /**< Size of the target buffer. */
         size_t *result_size, /**< Uploaded data size. */
         uint32_t *abort_code /**< Abort code of the SDO upload. */
+        );
+
+/** Executes an SDO upload request to read data from a slave via complete
+ * access.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_sdo_upload_complete(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        uint16_t index, /**< Index of the SDO. */
+        uint8_t *target, /**< Target buffer for the upload. */
+        size_t target_size, /**< Size of the target buffer. */
+        size_t *result_size, /**< Uploaded data size. */
+        uint32_t *abort_code /**< Abort code of the SDO upload. */
+        );
+
+/** Executes an FoE read request to read a file from a slave.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_foe_read(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        const char *file_name, /**< File name on the slave. */
+        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        uint8_t *target, /**< Target buffer for the upload. */
+        size_t target_size, /**< Size of the target buffer. */
+        size_t *result_size, /**< Uploaded data size. */
+        uint32_t *result, /**< FoE result code. */
+        uint32_t *error_code /**< FoE error code. */
+        );
+
+/** Executes an FoE write request to write a file to a slave.
+ *
+ * This request is processed by the master state machine. This method blocks,
+ * until the request has been processed and may not be called in realtime
+ * context.
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_foe_write(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        const char *file_name, /**< File name on the slave. */
+        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        const uint8_t *data, /**< Data to write. */
+        size_t data_size, /**< Size of data to write. */
+        uint32_t *result, /**< FoE result code. */
+        uint32_t *error_code /**< FoE error code. */
+        );
+
+/** Request an AL state transition for all slaves on the bus.
+ *
+ * This sets the requested state for every slave. The master state machine
+ * will then process the transitions asynchronously.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_set_states(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint8_t al_state /**< Requested AL state. */
         );
 
 /** Executes an SoE write request.
@@ -1821,6 +1926,23 @@ EC_PUBLIC_API ec_sdo_request_t *ecrt_slave_config_create_sdo_request(
         size_t size /**< Data size to reserve. */
         );
 
+/** Create an SDO request to exchange SDOs during realtime operation
+ *  using complete access.
+ *
+ * The created SDO request object is freed automatically when the master is
+ * released.
+ *
+ * This method has to be called in non-realtime context before
+ * ecrt_master_activate().
+ *
+ * \return New SDO request, or NULL on error.
+ */
+EC_PUBLIC_API ec_sdo_request_t *ecrt_slave_config_create_sdo_request_complete(
+        ec_slave_config_t *sc, /**< Slave configuration. */
+        uint16_t index, /**< SDO index. */
+        size_t size /**< Data size to reserve. */
+        );
+
 /** Create an SoE request to exchange SoE IDNs during realtime operation.
  *
  * The created SoE request object is freed automatically when the master is
@@ -2288,6 +2410,20 @@ EC_PUBLIC_API int ecrt_sdo_request_index(
         uint8_t subindex /**< SDO subindex. */
         );
 
+/** Set the SDO index and prepare for complete-access.
+ *
+ * This is valid even if the request was not created for complete-access.
+ *
+ * \attention If the SDO index is changed while ecrt_sdo_request_state()
+ * returns EC_REQUEST_BUSY, this may lead to unexpected results.
+ *
+ * \return 0 on success, otherwise negative error code.
+ */
+EC_PUBLIC_API int ecrt_sdo_request_index_complete(
+        ec_sdo_request_t *req, /**< SDO request. */
+        uint16_t index /**< SDO index. */
+        );
+
 /** Set the timeout for an SDO request.
  *
  * If the request cannot be processed in the specified time, if will be marked
@@ -2397,6 +2533,19 @@ EC_PUBLIC_API ec_request_state_t ecrt_sdo_request_state(
  */
 EC_PUBLIC_API int ecrt_sdo_request_write(
         ec_sdo_request_t *req /**< SDO request. */
+        );
+
+/** Schedule an SDO write operation with a specific size.
+ *
+ * \attention This method may not be called while ecrt_sdo_request_state()
+ * returns EC_REQUEST_BUSY.
+ *
+ * \attention The size must be less than or equal to the size specified
+ * when the request was created.
+ */
+EC_PUBLIC_API void ecrt_sdo_request_write_with_size(
+        ec_sdo_request_t *req, /**< SDO request. */
+        size_t size /**< Size of data to write. */
         );
 
 /** Schedule an SDO read operation.
