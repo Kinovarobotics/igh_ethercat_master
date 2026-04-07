@@ -1082,8 +1082,7 @@ void ec_fsm_master_enter_write_system_times(
     }
 
     // scanning and setting system times complete
-    ec_master_request_op(master);
-    EC_MASTER_DBG(master, 1, "After requesting OP, rescan_required is %u.\n",
+    EC_MASTER_DBG(master, 1, "Scan complete, rescan_required is %u.\n",
             fsm->rescan_required);
     ec_fsm_master_restart(fsm);
 }

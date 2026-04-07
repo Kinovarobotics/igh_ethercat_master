@@ -374,7 +374,6 @@ ec_slave_config_t *ecrt_master_slave_config_err(ec_master_t *, uint16_t,
         uint16_t, uint32_t, uint32_t);
 
 void ec_master_calc_dc(ec_master_t *);
-void ec_master_request_op(ec_master_t *);
 
 void ec_master_internal_send_cb(void *);
 void ec_master_internal_receive_cb(void *);

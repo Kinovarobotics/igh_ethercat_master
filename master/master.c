@@ -2234,36 +2234,6 @@ void ec_master_calc_dc(
     ec_master_calc_transmission_delays(master);
 }
 
-/****************************************************************************/
-
-/** Request OP state for configured slaves.
- */
-void ec_master_request_op(
-        ec_master_t *master /**< EtherCAT master. */
-        )
-{
-    unsigned int i;
-    ec_slave_t *slave;
-
-    if (!master->active)
-        return;
-
-    EC_MASTER_DBG(master, 1, "Requesting OP...\n");
-
-    // request OP for all configured slaves
-    for (i = 0; i < master->slave_count; i++) {
-        slave = master->slaves + i;
-        if (slave->config) {
-            ec_slave_request_state(slave, EC_SLAVE_STATE_OP);
-        }
-    }
-
-    // always set DC reference clock to OP
-    if (master->dc_ref_clock) {
-        ec_slave_request_state(master->dc_ref_clock, EC_SLAVE_STATE_OP);
-    }
-}
-
 /*****************************************************************************
  *  Application interface
  ****************************************************************************/
