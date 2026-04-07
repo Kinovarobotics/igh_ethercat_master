@@ -643,6 +643,7 @@ typedef enum {
 typedef enum {
     EC_AL_STATE_INIT = 1, /**< Init. */
     EC_AL_STATE_PREOP = 2, /**< Pre-operational. */
+    EC_AL_STATE_BOOT = 3, /**< Bootstrap. */
     EC_AL_STATE_SAFEOP = 4, /**< Safe-operational. */
     EC_AL_STATE_OP = 8, /**< Operational. */
 } ec_al_state_t;
