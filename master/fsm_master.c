@@ -163,6 +163,30 @@ void ec_fsm_master_reset(
 
 /****************************************************************************/
 
+/** Reset only the FSM execution state.
+ *
+ * Used by ecrt_master_deactivate after stopping the OP thread, so the
+ * freshly restarted IDLE thread starts at state_start instead of resuming
+ * whatever mid-cycle handler the killed OP thread was running.
+ *
+ * Unlike ec_fsm_master_reset, this does NOT clear the bus observation
+ * state. Those reflect what's actually on the wire and don't
+ * need to be re-discovered just because a thread restarted. Clearing
+ * them here would force an unnecessary full rescan on the very next FSM
+ * cycle, compounding with the slaves' SM watchdog timeout and leaving
+ * them stuck in error states.
+ */
+void ec_fsm_master_reset_state(
+        ec_fsm_master_t *fsm /**< Master state machine. */
+        )
+{
+    fsm->state = ec_fsm_master_state_start;
+    fsm->idle = 0;
+    fsm->dev_idx = EC_DEVICE_MAIN;
+}
+
+/****************************************************************************/
+
 /** Executes the current state of the state machine.
  *
  * If the state machine's datagram is not sent or received yet, the execution

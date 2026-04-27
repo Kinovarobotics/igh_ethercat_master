@@ -249,19 +249,15 @@ int ec_fsm_slave_action_process_sdo(
         return 0;
     }
 
-    /* Defer SDO processing while the slave is queued for
-     * reconfiguration. After ecrt_master_deactivate, every slave has
-     * force_config=1 set (master.c) and its configs cleared, but the
+    /*
+     * Defer SDO processing while the slave is queued for
+     * reconfiguration. After deactivation, every slave has
+     * force_config=1 and its configs cleared, but the
      * slave FSM may still be in state_ready from before deactivate.
      * Dispatching an SDO here sets jiffies_sent on a slave whose mailbox
      * plumbing has not yet been re-armed, and the kernel's 1000 ms
-     * response timer (EC_SDO_REQUEST_RESPONSE_TIMEOUT, sdo_request.c:38)
-     * fires before the slave can answer.
-     *
-     * Leaving the request queued lets the master FSM reconfigure the
-     * slave first (state_configure_slave clears force_config in
-     * fsm_master.c). On the next cycle this action runs again and the
-     * SDO is dispatched against a fully ready slave. */
+     * response timer fires before the slave can answer.
+     */
     if (slave->force_config) {
         return 0;
     }

@@ -2380,6 +2380,16 @@ int ecrt_master_deactivate(ec_master_t *master)
     }
 
     ec_master_thread_stop(master);
+
+    /* Reset only the FSM execution state (state pointer / idle
+     * flag / dev_idx) after killing the OP thread, so the freshly
+     * restarted IDLE thread doesn't invoke whatever mid-cycle handler
+     * (state_check / state_status / etc.) the OP thread was inside —
+     * which would dereference a datagram that never finished its
+     * previous round-trip.
+     */
+    ec_fsm_master_reset_state(&master->fsm);
+
 #ifdef EC_EOE
     eoe_was_running = master->eoe_thread != NULL;
     ec_master_eoe_stop(master);
