@@ -249,6 +249,19 @@ int ec_fsm_slave_action_process_sdo(
         return 0;
     }
 
+    /*
+     * Defer SDO processing while the slave is queued for
+     * reconfiguration. After deactivation, every slave has
+     * force_config=1 and its configs cleared, but the
+     * slave FSM may still be in state_ready from before deactivate.
+     * Dispatching an SDO here sets jiffies_sent on a slave whose mailbox
+     * plumbing has not yet been re-armed, and the kernel's 1000 ms
+     * response timer fires before the slave can answer.
+     */
+    if (slave->force_config) {
+        return 0;
+    }
+
     // take the first request to be processed
     request = list_entry(slave->sdo_requests.next, ec_sdo_request_t, list);
     list_del_init(&request->list); // dequeue
