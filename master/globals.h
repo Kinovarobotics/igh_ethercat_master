@@ -50,6 +50,17 @@
     after slave entered PREOP state. */
 #define EC_WAIT_SDO_DICT 3
 
+/** RL1-1575: If set, skip fetching the SDO dictionary during the slave scan.
+    The dictionary is housekeeping for the `ethercat sdos` CLI tooling only;
+    it is never used for PDO exchange or for targeted SDO access by index. On a
+    CoE slave it blocks the master FSM for seconds (one fetch per slave), which
+    during a forced rescan stalls the OP transition past the application's
+    enable timeout. This mirrors the core of the gavin patch
+    0024-Sdo-directory-now-only-fetched-on-request; the on-demand fetch
+    machinery (dict_request + ioctl + tool) from that patch is intentionally
+    not ported, so `ethercat sdos` will return empty until that is adopted. */
+#define EC_SKIP_SDO_DICT 1
+
 /** Minimum size of a buffer used with ec_state_string(). */
 #define EC_STATE_STRING_SIZE 32
 

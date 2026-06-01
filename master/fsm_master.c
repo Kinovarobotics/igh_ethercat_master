@@ -648,7 +648,11 @@ void ec_fsm_master_action_idle(
         ec_fsm_slave_set_ready(&slave->fsm);
     }
 
+#if !EC_SKIP_SDO_DICT
     // check, if slaves have an SDO dictionary to read out.
+    // RL1-1575: gated by EC_SKIP_SDO_DICT (globals.h). Slave readiness is
+    // already enabled by the loop above, so skipping this is safe; the only
+    // effect is that the dictionary list stays empty (unused outside tooling).
     for (slave = master->slaves;
             slave < master->slaves + master->slave_count;
             slave++) {
@@ -674,6 +678,7 @@ void ec_fsm_master_action_idle(
         fsm->datagram->device_index = fsm->slave->device_index;
         return;
     }
+#endif
 
     // check for pending SII write operations.
     if (ec_fsm_master_action_process_sii(fsm)) {
