@@ -70,10 +70,6 @@ typedef enum {
     EC_DATAGRAM_RECEIVED,  /**< Received (dequeued). */
     EC_DATAGRAM_TIMED_OUT, /**< Timed out (dequeued). */
     EC_DATAGRAM_ERROR,     /**< Error while sending/receiving (dequeued). */
-    /* RL1-1575: backported from gavin patch 0019; required by 0027/0028.
-       Marks an external-ring datagram handed to a slave FSM that did not use
-       it, so it is neither sent (the inject path only queues INIT datagrams)
-       nor counted as consumed by ec_master_exec_slave_fsms. */
     EC_DATAGRAM_INVALID    /**< Unused and should not be queued (dequeued). */
 } ec_datagram_state_t;
 
