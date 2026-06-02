@@ -313,7 +313,10 @@ void ec_fsm_master_state_broadcast(
     }
 
     // bus topology change?
-    if (datagram->working_counter != fsm->slaves_responding[fsm->dev_idx]) {
+    // Only react to a received broadcast read; a timed-out BRD carries a
+    // stale/zero working counter and must not force a rescan.
+    if (datagram->state == EC_DATAGRAM_RECEIVED
+            && datagram->working_counter != fsm->slaves_responding[fsm->dev_idx]) {
         fsm->rescan_required = 1;
         fsm->slaves_responding[fsm->dev_idx] = datagram->working_counter;
         EC_MASTER_INFO(master, "%u slave(s) responding on %s device. "
@@ -648,6 +651,7 @@ void ec_fsm_master_action_idle(
         ec_fsm_slave_set_ready(&slave->fsm);
     }
 
+#if !EC_SKIP_SDO_DICT
     // check, if slaves have an SDO dictionary to read out.
     for (slave = master->slaves;
             slave < master->slaves + master->slave_count;
@@ -674,6 +678,7 @@ void ec_fsm_master_action_idle(
         fsm->datagram->device_index = fsm->slave->device_index;
         return;
     }
+#endif
 
     // check for pending SII write operations.
     if (ec_fsm_master_action_process_sii(fsm)) {

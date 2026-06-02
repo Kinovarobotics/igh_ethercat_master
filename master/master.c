@@ -1011,6 +1011,15 @@ void ec_master_queue_datagram_ext(
 
 /****************************************************************************/
 
+static int index_in_use(ec_master_t *master, uint8_t index)
+{
+    ec_datagram_t *datagram;
+    list_for_each_entry(datagram, &master->datagram_queue, queue)
+        if (datagram->state == EC_DATAGRAM_SENT && datagram->index == index)
+            return 1;
+    return 0;
+}
+
 /** Sends the datagrams in the queue for a certain device.
  *
  */
@@ -1029,6 +1038,7 @@ void ec_master_send_datagrams(
     unsigned long jiffies_sent;
     unsigned int frame_count, more_datagrams_waiting;
     struct list_head sent_datagrams;
+    uint8_t last_index;
 
 #ifdef EC_HAVE_CYCLES
     cycles_start = get_cycles();
@@ -1066,8 +1076,18 @@ void ec_master_send_datagrams(
                 break;
             }
 
-            list_add_tail(&datagram->sent, &sent_datagrams);
+            // do not reuse the index of a pending datagram to avoid confusion
+            // in ec_master_receive_datagrams()
+            last_index = master->datagram_index;
+            while (index_in_use(master, master->datagram_index)) {
+                if (++master->datagram_index == last_index) {
+                    EC_MASTER_ERR(master, "No free datagram index, sending delayed\n");
+                    goto break_send;
+                }
+            }
             datagram->index = master->datagram_index++;
+
+            list_add_tail(&datagram->sent, &sent_datagrams);
 
             EC_MASTER_DBG(master, 2, "Adding datagram 0x%02X\n",
                     datagram->index);
@@ -1096,6 +1116,7 @@ void ec_master_send_datagrams(
             cur_data += EC_DATAGRAM_FOOTER_SIZE;
         }
 
+break_send:
         if (list_empty(&sent_datagrams)) {
             EC_MASTER_DBG(master, 2, "nothing to send.\n");
             break;
@@ -1493,13 +1514,15 @@ void ec_master_exec_slave_fsms(
                 fsm->slave->ring_position);
 #endif
         if (ec_fsm_slave_exec(fsm, datagram)) {
-            // FSM consumed datagram
+            if (datagram->state != EC_DATAGRAM_INVALID) {
+                // FSM consumed datagram
 #if DEBUG_INJECT
-            EC_MASTER_DBG(master, 1, "FSM consumed datagram %s\n",
-                    datagram->name);
+                EC_MASTER_DBG(master, 1, "FSM consumed datagram %s\n",
+                        datagram->name);
 #endif
-            master->ext_ring_idx_fsm =
-                (master->ext_ring_idx_fsm + 1) % EC_EXT_RING_SIZE;
+                master->ext_ring_idx_fsm =
+                    (master->ext_ring_idx_fsm + 1) % EC_EXT_RING_SIZE;
+            }
         }
         else {
             // FSM finished
@@ -1519,8 +1542,10 @@ void ec_master_exec_slave_fsms(
             datagram = ec_master_get_external_datagram(master);
 
             if (ec_fsm_slave_exec(&master->fsm_slave->fsm, datagram)) {
-                master->ext_ring_idx_fsm =
-                    (master->ext_ring_idx_fsm + 1) % EC_EXT_RING_SIZE;
+                if (datagram->state != EC_DATAGRAM_INVALID) {
+                    master->ext_ring_idx_fsm =
+                        (master->ext_ring_idx_fsm + 1) % EC_EXT_RING_SIZE;
+                }
                 list_add_tail(&master->fsm_slave->fsm.list,
                         &master->fsm_exec_list);
                 master->fsm_exec_count++;

@@ -479,6 +479,17 @@ int ec_fsm_slave_action_process_foe(
         return 0;
     }
 
+    /* Ensures that a FoE is not requested in INIT. If not, it's aborted properly. */
+    if (slave->current_state == EC_SLAVE_STATE_INIT ||
+            slave->current_state == EC_SLAVE_STATE_UNKNOWN) {
+        EC_SLAVE_WARN(slave, "Aborting FoE request, slave is not in a"
+                " mailbox-capable state (0x%02X).\n", slave->current_state);
+        request->state = EC_INT_REQUEST_FAILURE;
+        wake_up_all(&slave->master->request_queue);
+        fsm->state = ec_fsm_slave_state_idle;
+        return 0;
+    }
+
     request->state = EC_INT_REQUEST_BUSY;
     fsm->foe_request = request;
 
