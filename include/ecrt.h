@@ -343,6 +343,9 @@ typedef struct {
                                   - Bit 3: \a OP */
     unsigned int link_up : 1; /**< \a true, if at least one Ethernet link is
                                 up. */
+    unsigned int slaves_in_error : 1; /**< \a true, if at least one slave on the
+                                  bus has its AL error-indication bit set (AL
+                                  status register 0x0130, bit 4). */
 } ec_master_state_t;
 
 /****************************************************************************/
@@ -389,6 +392,8 @@ typedef struct  {
 
                                  Note that each state is coded in a different
                                  bit! */
+    uint16_t al_status_code; /**< Last AL status code (register 0x0134); 0 if none. */
+    uint8_t error_flag; /**< Non-zero when the master flagged this slave in error. */
 } ec_slave_config_state_t;
 
 /****************************************************************************/

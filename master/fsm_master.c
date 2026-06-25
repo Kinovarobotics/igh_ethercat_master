@@ -742,8 +742,10 @@ void ec_fsm_master_action_configure(
     }
 
     // Does the slave have to be configured?
+    // Do not reconfigure when an error was detected on a device.
     if ((slave->current_state != slave->requested_state
-                || slave->force_config) && !slave->error_flag) {
+                || slave->force_config) && !slave->error_flag
+            && !slave->last_al_status_code) {
 
         // Start slave configuration
         down(&master->config_sem);
@@ -819,7 +821,7 @@ void ec_fsm_master_state_read_state(
             return;
         }
 
-        // No acknowlegde necessary; check for configuration
+        // No acknowledge necessary; check for configuration
         ec_fsm_master_action_configure(fsm);
         return;
     }

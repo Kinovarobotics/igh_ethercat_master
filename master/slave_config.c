@@ -1420,9 +1420,13 @@ int ecrt_slave_config_state(const ec_slave_config_t *sc,
         state->operational =
             slave->current_state == EC_SLAVE_STATE_OP && !slave->force_config;
         state->al_state = slave->current_state;
+        state->al_status_code = slave->last_al_status_code;
+        state->error_flag = slave->error_flag ? 1 : 0;
     } else {
         state->operational = 0;
         state->al_state = EC_SLAVE_STATE_UNKNOWN;
+        state->al_status_code = 0;
+        state->error_flag = 0;
     }
     return 0;
 }
