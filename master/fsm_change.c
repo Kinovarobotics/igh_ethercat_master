@@ -463,6 +463,7 @@ void ec_fsm_change_state_code(ec_fsm_change_t *fsm
         ec_datagram_print_wc_error(datagram);
     } else {
         code = EC_READ_U16(datagram->data);
+        fsm->slave->last_al_status_code = code;
         for (al_msg = al_status_messages; al_msg->code != 0xffff; al_msg++) {
             if (al_msg->code != code) {
                 continue;

@@ -770,6 +770,9 @@ int ec_master_enter_operation_phase(
             slave < master->slaves + master->slave_count;
             slave++) {
         ec_slave_request_state(slave, EC_SLAVE_STATE_PREOP);
+
+        // Clear any latched AL status if any
+        slave->last_al_status_code = 0;
     }
 
     master->phase = EC_OPERATION;
@@ -2795,6 +2798,7 @@ int ecrt_master_state(const ec_master_t *master, ec_master_state_t *state)
     state->slaves_responding = 0U;
     state->al_states = 0;
     state->link_up = 0U;
+    state->slaves_in_error = 0U;
 
     for (dev_idx = EC_DEVICE_MAIN; dev_idx < ec_master_num_devices(master);
             dev_idx++) {
@@ -2806,6 +2810,14 @@ int ecrt_master_state(const ec_master_t *master, ec_master_state_t *state)
 
         /* Signal link up if at least one device has link. */
         state->link_up |= master->devices[dev_idx].link_state;
+    }
+
+    /* Report which slave is in error */
+    for (unsigned int i = 0; i < master->slave_count; i++) {
+        if (master->slaves[i].last_al_status_code) {
+            state->slaves_in_error = 1U;
+            break;
+        }
     }
     return 0;
 }
