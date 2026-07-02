@@ -745,6 +745,19 @@ int ec_master_enter_operation_phase(
         up(&master->config_sem);
     }
 
+    // Force a fresh bus re-scan to ensure every device is detected and configured on the bus.
+    down(&master->scan_sem);
+    master->fsm.rescan_required = 1;
+    up(&master->scan_sem);
+
+    ret = wait_event_interruptible(master->scan_queue,
+            !master->fsm.rescan_required && !master->scan_busy);
+    if (ret) {
+        EC_MASTER_INFO(master, "Waiting for forced rescan"
+                " interrupted by signal.\n");
+        goto out_return;
+    }
+
     down(&master->scan_sem);
     master->allow_scan = 0; // 'lock' the slave list
     if (!master->scan_busy) {
