@@ -258,7 +258,9 @@ int ec_fsm_slave_action_process_sdo(
      * plumbing has not yet been re-armed, and the kernel's 1000 ms
      * response timer fires before the slave can answer.
      */
-    if (slave->force_config) {
+    if (slave->force_config
+            && !slave->error_flag
+            && !slave->last_al_status_code) {
         return 0;
     }
 
