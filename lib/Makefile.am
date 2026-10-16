@@ -72,8 +72,11 @@ libethercat_la_CFLAGS = \
 # 2:0:1
 #   SoE requests added
 # 3:0:2
+#   (stock IgH 1.6.9; the Kinova 1.6.9.1 release kept it)
+# 4:0:3
+#   ecrt_master_set_slave_state() added.
 #
-libethercat_la_LDFLAGS = -version-info 3:0:2 \
+libethercat_la_LDFLAGS = -version-info 4:0:3 \
 	-Wl,--version-script=$(srcdir)/libethercat.map \
 	-fvisibility=hidden
 

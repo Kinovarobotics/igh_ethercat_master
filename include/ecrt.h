@@ -166,7 +166,7 @@
 
 /** EtherCAT realtime interface patch version number.
  */
-#define ECRT_VER_PATCH 1
+#define ECRT_VER_PATCH 2
 
 /** EtherCAT realtime interface version word generator.
  */
@@ -1104,6 +1104,22 @@ EC_PUBLIC_API int ecrt_master_foe_write(
  */
 EC_PUBLIC_API int ecrt_master_set_states(
         ec_master_t *master, /**< EtherCAT master. */
+        uint8_t al_state /**< Requested AL state. */
+        );
+
+/** Request an AL state transition for a single slave.
+ *
+ * This sets the requested state for one slave. The master state machine
+ * will then process the transition asynchronously.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_set_slave_state(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
         uint8_t al_state /**< Requested AL state. */
         );
 
