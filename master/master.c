@@ -3303,6 +3303,7 @@ int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
     request.password = password;
     if (timeout) {
         request.response_timeout = timeout;
+        request.issue_timeout = timeout;
     }
     ret = ec_foe_request_alloc(&request, target_size);
     if (ret) {
@@ -3383,6 +3384,7 @@ int ecrt_master_foe_write(ec_master_t *master, uint16_t slave_position,
     request.password = password;
     if (timeout) {
         request.response_timeout = timeout;
+        request.issue_timeout = timeout;
     }
     ret = ec_foe_request_alloc(&request, data_size);
     if (ret) {

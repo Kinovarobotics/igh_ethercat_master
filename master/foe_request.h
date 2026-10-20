@@ -46,7 +46,8 @@ typedef struct {
     size_t data_size; /**< Size of FoE data. */
 
     uint32_t issue_timeout; /**< Maximum time in ms, the processing of the
-                              request may take. */
+                              request may take, queueing and transfer
+                              included (0 = no bound). */
     uint32_t response_timeout; /**< Maximum time in ms, the transfer is
                                  retried, if the slave does not respond. */
     ec_direction_t dir; /**< Direction. EC_DIR_OUTPUT means downloading to
