@@ -433,6 +433,23 @@ void ec_fsm_foe_state_ack_read(
         fsm->state = ec_fsm_foe_state_data_sent;
         return;
     }
+
+    if (opCode == EC_FOE_OPCODE_ERR) {
+        fsm->request->error_code = EC_READ_U32(data + 2);
+        EC_SLAVE_ERR(slave, "Received FoE Error Request (code 0x%08x)"
+                " in reply to packet %u.\n", fsm->request->error_code,
+                fsm->packet_no);
+        if (rec_size > 6) {
+            uint8_t text[256];
+            strncpy(text, data + 6, min(rec_size - 6, sizeof(text) - 1));
+            text[min(rec_size - 6, sizeof(text) - 1)] = 0;
+            EC_SLAVE_ERR(slave, "FoE Error Text: %s\n", text);
+        }
+        ec_foe_set_tx_error(fsm, FOE_OPCODE_ERROR);
+        return;
+    }
+
+    EC_SLAVE_ERR(slave, "Received FoE OPCODE %x, expected ACK.\n", opCode);
     ec_foe_set_tx_error(fsm, FOE_ACK_ERROR);
 }
 
