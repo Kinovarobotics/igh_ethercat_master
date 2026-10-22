@@ -166,7 +166,7 @@
 
 /** EtherCAT realtime interface patch version number.
  */
-#define ECRT_VER_PATCH 1
+#define ECRT_VER_PATCH 2
 
 /** EtherCAT realtime interface version word generator.
  */
@@ -1063,7 +1063,9 @@ EC_PUBLIC_API int ecrt_master_foe_read(
         uint16_t slave_position, /**< Slave position. */
         const char *file_name, /**< File name on the slave. */
         uint32_t password, /**< FoE password (0 = no password). */
-        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        uint32_t timeout, /**< Timeout in ms, bounding the whole transfer and
+                            each wait for a response (0 = default 3s per
+                            response, no transfer bound). */
         uint8_t *target, /**< Target buffer for the upload. */
         size_t target_size, /**< Size of the target buffer. */
         size_t *result_size, /**< Uploaded data size. */
@@ -1085,7 +1087,9 @@ EC_PUBLIC_API int ecrt_master_foe_write(
         uint16_t slave_position, /**< Slave position. */
         const char *file_name, /**< File name on the slave. */
         uint32_t password, /**< FoE password (0 = no password). */
-        uint32_t timeout, /**< Timeout in ms (0 = default 3s). */
+        uint32_t timeout, /**< Timeout in ms, bounding the whole transfer and
+                            each wait for a response (0 = default 3s per
+                            response, no transfer bound). */
         const uint8_t *data, /**< Data to write. */
         size_t data_size, /**< Size of data to write. */
         uint32_t *result, /**< FoE result code. */
@@ -1104,6 +1108,22 @@ EC_PUBLIC_API int ecrt_master_foe_write(
  */
 EC_PUBLIC_API int ecrt_master_set_states(
         ec_master_t *master, /**< EtherCAT master. */
+        uint8_t al_state /**< Requested AL state. */
+        );
+
+/** Request an AL state transition for a single slave.
+ *
+ * This sets the requested state for one slave. The master state machine
+ * will then process the transition asynchronously.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_set_slave_state(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
         uint8_t al_state /**< Requested AL state. */
         );
 

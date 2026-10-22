@@ -44,7 +44,6 @@ typedef struct ec_fsm_foe ec_fsm_foe_t; /**< \see ec_fsm_foe */
  */
 struct ec_fsm_foe {
     ec_slave_t *slave; /**< Slave the FSM runs on. */
-    unsigned int retries; /**< Retries upon datagram timeout */
 
     void (*state)(ec_fsm_foe_t *, ec_datagram_t *); /**< FoE state function.
                                                      */

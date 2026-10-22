@@ -563,6 +563,27 @@ int ecrt_master_set_states(ec_master_t *master, uint8_t al_state)
 
 /****************************************************************************/
 
+int ecrt_master_set_slave_state(ec_master_t *master, uint16_t slave_position,
+        uint8_t al_state)
+{
+    ec_ioctl_slave_state_t data;
+    int ret;
+
+    data.slave_position = slave_position;
+    data.al_state = al_state;
+
+    ret = ioctl(master->fd, EC_IOCTL_SLAVE_STATE, &data);
+    if (EC_IOCTL_IS_ERROR(ret)) {
+        fprintf(stderr, "Failed to set state for slave %u: %s\n",
+                slave_position, strerror(EC_IOCTL_ERRNO(ret)));
+        return -EC_IOCTL_ERRNO(ret);
+    }
+
+    return 0;
+}
+
+/****************************************************************************/
+
 int ecrt_master_foe_read(ec_master_t *master, uint16_t slave_position,
         const char *file_name, uint32_t password, uint32_t timeout,
         uint8_t *target, size_t target_size,

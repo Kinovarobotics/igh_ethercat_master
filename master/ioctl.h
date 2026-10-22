@@ -45,9 +45,10 @@
 
 /** EtherCAT master ioctl() version magic.
  *
- * Increment this when changing the ioctl interface!
+ * Increment this when changing the ioctl interface, or the module behaviour
+ * the library's users rely on (0x0138: FoE survives timed-out datagrams)!
  */
-#define EC_IOCTL_VERSION_MAGIC 0x0137
+#define EC_IOCTL_VERSION_MAGIC 0x0139
 
 // Command-line tool
 #define EC_IOCTL_MODULE                EC_IOR(0x00, ec_ioctl_module_t)
