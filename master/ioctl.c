@@ -183,6 +183,7 @@ static ATTRIBUTES int ec_ioctl_master(
 
     io.tx_count = master->device_stats.tx_count;
     io.rx_count = master->device_stats.rx_count;
+    io.lost_count = master->device_stats.lost_count;
     io.tx_bytes = master->device_stats.tx_bytes;
     io.rx_bytes = master->device_stats.rx_bytes;
     for (j = 0; j < EC_RATE_COUNT; j++) {
@@ -1108,18 +1109,10 @@ static ATTRIBUTES int ec_ioctl_slave_reg_read(
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            // abort request
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_reg_request_clear(&request);
-            return -EINTR;
-        }
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_reg_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing
@@ -1201,18 +1194,10 @@ static ATTRIBUTES int ec_ioctl_slave_reg_write(
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            // abort request
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_reg_request_clear(&request);
-            return -EINTR;
-        }
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_reg_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing

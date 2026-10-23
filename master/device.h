@@ -92,6 +92,7 @@ struct ec_device
     u64 tx_count; /**< Number of frames sent. */
     u64 last_tx_count; /**< Number of frames sent of last statistics cycle. */
     u64 rx_count; /**< Number of frames received. */
+    u64 lost_frame_id; /**< Id of the last frame counted lost. */
     u64 last_rx_count; /**< Number of frames received of last statistics
                          cycle. */
     u64 tx_bytes; /**< Number of bytes sent. */

@@ -157,6 +157,7 @@ typedef struct {
     u64 last_rx_bytes; /**< Number of bytes received of last statistics cycle.
                         */
     u64 last_loss; /**< Tx/Rx difference of last statistics cycle. */
+    u64 lost_count; /**< Number of frames with a timed-out datagram. */
     s32 tx_frame_rates[EC_RATE_COUNT]; /**< Transmit rates in frames/s for
                                          different statistics cycle periods.
                                         */
@@ -252,6 +253,7 @@ struct ec_master {
 
     struct list_head datagram_queue; /**< Datagram queue. */
     uint8_t datagram_index; /**< Current datagram index. */
+    u64 frame_id; /**< Id of the last frame sent. */
 
     struct list_head ext_datagram_queue; /**< Queue for non-application
                                            datagrams. */
@@ -322,6 +324,9 @@ void ec_master_clear(ec_master_t *);
 #else
 #define ec_master_num_devices(MASTER) 1
 #endif
+
+int ec_master_wait_request_taken(ec_master_t *, struct list_head *,
+        const ec_internal_request_state_t *);
 
 // phase transitions
 int ec_master_enter_idle_phase(ec_master_t *);

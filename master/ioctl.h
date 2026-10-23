@@ -46,9 +46,11 @@
 /** EtherCAT master ioctl() version magic.
  *
  * Increment this when changing the ioctl interface, or the module behaviour
- * the library's users rely on (0x0138: FoE survives timed-out datagrams)!
+ * the library's users rely on (0x0138: FoE survives timed-out datagrams,
+ * 0x013A: lost frame counter, 0x013B: SDO and register requests withdrawn
+ * after EC_REQUEST_QUEUE_TIMEOUT in their queue)!
  */
-#define EC_IOCTL_VERSION_MAGIC 0x0139
+#define EC_IOCTL_VERSION_MAGIC 0x013B
 
 // Command-line tool
 #define EC_IOCTL_MODULE                EC_IOR(0x00, ec_ioctl_module_t)
@@ -202,6 +204,7 @@ typedef struct {
     uint32_t num_devices;
     uint64_t tx_count;
     uint64_t rx_count;
+    uint64_t lost_count;
     uint64_t tx_bytes;
     uint64_t rx_bytes;
     int32_t tx_frame_rates[EC_RATE_COUNT];

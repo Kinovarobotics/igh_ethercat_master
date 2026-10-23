@@ -585,7 +585,7 @@ int ecrt_master_set_slave_state(ec_master_t *master, uint16_t slave_position,
 /****************************************************************************/
 
 int ecrt_master_frame_counters(ec_master_t *master, uint64_t *tx_count,
-        uint64_t *rx_count)
+        uint64_t *lost_count)
 {
     ec_ioctl_master_t data;
     int ret;
@@ -598,7 +598,7 @@ int ecrt_master_frame_counters(ec_master_t *master, uint64_t *tx_count,
     }
 
     *tx_count = data.tx_count;
-    *rx_count = data.rx_count;
+    *lost_count = data.lost_count;
     return 0;
 }
 
