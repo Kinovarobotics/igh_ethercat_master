@@ -116,16 +116,24 @@ static int ec_fsm_foe_write_timed_out(
 
 /****************************************************************************/
 
-/** Handle a timed-out mailbox check of the previous step.
+/** Handle a timed-out mailbox read (check or fetch) of the previous step.
  *
- * A mailbox check only reads the sync manager status, so it is sent again
+ * A timed-out check only lost a sync manager status, so the check is sent
+ * again. A timed-out fetch either never reached the slave, whose reply then
+ * still waits in its mailbox, or it was lost on the way back after the slave
+ * had emptied it; checking again recovers the first case, and the response
+ * timeout fails the transfer in the second. Both go back to \a check_state
  * until the response timeout of the request elapses.
  *
- * \return Non-zero if the check timed out (checked again, or failed).
+ * \return Non-zero if the read timed out (checked again, or failed).
  */
-static int ec_fsm_foe_check_timed_out(
+static int ec_fsm_foe_read_timed_out(
         ec_fsm_foe_t *fsm, /**< FoE statemachine. */
-        ec_datagram_t *datagram /**< Datagram to use. */
+        ec_datagram_t *datagram, /**< Datagram to use. */
+        const char *what, /**< Name of the read, for the log. */
+        void (*check_state)(ec_fsm_foe_t *, ec_datagram_t *) /**< State
+                                                              checking the
+                                                              mailbox. */
         )
 {
     unsigned long diff_ms;
@@ -142,9 +150,10 @@ static int ec_fsm_foe_check_timed_out(
         return 1;
     }
 
-    EC_SLAVE_WARN(fsm->slave, "FoE mailbox check datagram timed out;"
-            " checking again.\n");
+    EC_SLAVE_WARN(fsm->slave, "FoE mailbox %s datagram timed out;"
+            " checking again.\n", what);
     ec_slave_mbox_prepare_check(fsm->slave, datagram); // can not fail.
+    fsm->state = check_state;
     return 1;
 }
 
@@ -390,7 +399,8 @@ void ec_fsm_foe_state_ack_check(
     EC_SLAVE_DBG(fsm->slave, 0, "%s()\n", __func__);
 #endif
 
-    if (ec_fsm_foe_check_timed_out(fsm, datagram)) {
+    if (ec_fsm_foe_read_timed_out(fsm, datagram, "check",
+                ec_fsm_foe_state_ack_check)) {
         return;
     }
 
@@ -447,6 +457,11 @@ void ec_fsm_foe_state_ack_read(
 #ifdef DEBUG_FOE
     EC_SLAVE_DBG(fsm->slave, 0, "%s()\n", __func__);
 #endif
+
+    if (ec_fsm_foe_read_timed_out(fsm, datagram, "fetch",
+                ec_fsm_foe_state_ack_check)) {
+        return;
+    }
 
     if (fsm->datagram->state != EC_DATAGRAM_RECEIVED) {
         ec_foe_set_rx_error(fsm, FOE_RECEIVE_ERROR);
@@ -760,7 +775,8 @@ void ec_fsm_foe_state_data_check(
     EC_SLAVE_DBG(fsm->slave, 0, "%s()\n", __func__);
 #endif
 
-    if (ec_fsm_foe_check_timed_out(fsm, datagram)) {
+    if (ec_fsm_foe_read_timed_out(fsm, datagram, "check",
+                ec_fsm_foe_state_data_check)) {
         return;
     }
 
@@ -815,6 +831,11 @@ void ec_fsm_foe_state_data_read(
 #ifdef DEBUG_FOE
     EC_SLAVE_DBG(fsm->slave, 0, "%s()\n", __func__);
 #endif
+
+    if (ec_fsm_foe_read_timed_out(fsm, datagram, "fetch",
+                ec_fsm_foe_state_data_check)) {
+        return;
+    }
 
     if (fsm->datagram->state != EC_DATAGRAM_RECEIVED) {
         ec_foe_set_rx_error(fsm, FOE_RECEIVE_ERROR);

@@ -97,6 +97,7 @@ typedef struct {
     cycles_t cycles_sent; /**< Time, when the datagram was sent. */
 #endif
     unsigned long jiffies_sent; /**< Jiffies, when the datagram was sent. */
+    u64 frame_id; /**< Frame the datagram was sent in. */
 #ifdef EC_HAVE_CYCLES
     cycles_t cycles_received; /**< Time, when the datagram was received. */
 #endif

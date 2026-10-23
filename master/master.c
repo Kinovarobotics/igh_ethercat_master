@@ -207,6 +207,7 @@ int ec_master_init(ec_master_t *master, /**< EtherCAT master */
 #endif
 
     ec_master_clear_device_stats(master);
+    master->frame_id = 0;
 
     sema_init(&master->device_sem, 1);
 
@@ -1155,6 +1156,7 @@ break_send:
         cycles_sent = get_cycles();
 #endif
         jiffies_sent = jiffies;
+        master->frame_id++;
 
         // set datagram states and sending timestamps
         list_for_each_entry_safe(datagram, next, &sent_datagrams, sent) {
@@ -1163,6 +1165,7 @@ break_send:
             datagram->cycles_sent = cycles_sent;
 #endif
             datagram->jiffies_sent = jiffies_sent;
+            datagram->frame_id = master->frame_id;
             list_del_init(&datagram->sent); // empty list of sent datagrams
         }
 
@@ -1372,6 +1375,7 @@ void ec_master_clear_device_stats(
     master->device_stats.rx_bytes = 0;
     master->device_stats.last_rx_bytes = 0;
     master->device_stats.last_loss = 0;
+    master->device_stats.lost_count = 0;
 
     for (i = 0; i < EC_RATE_COUNT; i++) {
         master->device_stats.tx_frame_rates[i] = 0;
@@ -2538,6 +2542,7 @@ int ecrt_master_receive(ec_master_t *master)
 {
     unsigned int dev_idx;
     ec_datagram_t *datagram, *next;
+    ec_device_t *device;
 
     // receive datagrams
     for (dev_idx = EC_DEVICE_MAIN; dev_idx < ec_master_num_devices(master);
@@ -2560,6 +2565,14 @@ int ecrt_master_receive(ec_master_t *master)
             list_del_init(&datagram->queue);
             datagram->state = EC_DATAGRAM_TIMED_OUT;
             master->stats.timeouts++;
+
+            // a device's frames are sent in queue order, so the datagrams
+            // of one lost frame follow each other for that device
+            device = &master->devices[datagram->device_index];
+            if (datagram->frame_id != device->lost_frame_id) {
+                device->lost_frame_id = datagram->frame_id;
+                master->device_stats.lost_count++;
+            }
 
 #ifdef EC_RT_SYSLOG
             ec_master_output_stats(master);
@@ -2947,6 +2960,47 @@ uint32_t ecrt_master_sync_monitor_process(const ec_master_t *master)
 
 /****************************************************************************/
 
+/** Wait until the slave state machine takes a queued request.
+ *
+ * A request still queued after EC_REQUEST_QUEUE_TIMEOUT, or when a signal
+ * arrives, is taken off its slave's list; one already taken can no longer be
+ * withdrawn, and its caller then waits for its end.
+ *
+ * \return Zero once taken, -ETIMEDOUT or -EINTR when withdrawn.
+ */
+int ec_master_wait_request_taken(
+        ec_master_t *master, /**< EtherCAT master. */
+        struct list_head *list, /**< The request's entry in its queue. */
+        const ec_internal_request_state_t *state /**< The request's state. */
+        )
+{
+    long remaining = wait_event_interruptible_timeout(master->request_queue,
+            *state != EC_INT_REQUEST_QUEUED,
+            msecs_to_jiffies(EC_REQUEST_QUEUE_TIMEOUT));
+
+    if (remaining > 0) {
+        return 0;
+    }
+
+    down(&master->master_sem);
+    if (*state != EC_INT_REQUEST_QUEUED) {
+        // taken meanwhile: withdrawing is not possible any more.
+        up(&master->master_sem);
+        return 0;
+    }
+    list_del(list);
+    up(&master->master_sem);
+
+    if (remaining == 0) {
+        EC_MASTER_WARN(master, "Request still queued after %u ms,"
+                " withdrawn.\n", EC_REQUEST_QUEUE_TIMEOUT);
+        return -ETIMEDOUT;
+    }
+    return -EINTR;
+}
+
+/****************************************************************************/
+
 int ecrt_master_sdo_download(ec_master_t *master, uint16_t slave_position,
         uint16_t index, uint8_t subindex, const uint8_t *data,
         size_t data_size, uint32_t *abort_code)
@@ -2993,18 +3047,10 @@ int ecrt_master_sdo_download(ec_master_t *master, uint16_t slave_position,
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_sdo_request_clear(&request);
-            return -EINTR;
-        }
-        // request already processing: interrupt not possible.
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_sdo_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing
@@ -3073,18 +3119,10 @@ int ecrt_master_sdo_download_complete(ec_master_t *master,
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_sdo_request_clear(&request);
-            return -EINTR;
-        }
-        // request already processing: interrupt not possible.
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_sdo_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing
@@ -3145,18 +3183,10 @@ int ecrt_master_sdo_upload(ec_master_t *master, uint16_t slave_position,
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_sdo_request_clear(&request);
-            return -EINTR;
-        }
-        // request already processing: interrupt not possible.
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_sdo_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing
@@ -3229,18 +3259,10 @@ int ecrt_master_sdo_upload_complete(ec_master_t *master,
     up(&master->master_sem);
 
     // wait for processing through FSM
-    if (wait_event_interruptible(master->request_queue,
-                request.state != EC_INT_REQUEST_QUEUED)) {
-        // interrupted by signal
-        down(&master->master_sem);
-        if (request.state == EC_INT_REQUEST_QUEUED) {
-            list_del(&request.list);
-            up(&master->master_sem);
-            ec_sdo_request_clear(&request);
-            return -EINTR;
-        }
-        // request already processing: interrupt not possible.
-        up(&master->master_sem);
+    ret = ec_master_wait_request_taken(master, &request.list, &request.state);
+    if (ret) {
+        ec_sdo_request_clear(&request);
+        return ret;
     }
 
     // wait until master FSM has finished processing

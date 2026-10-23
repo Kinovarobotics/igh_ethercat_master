@@ -367,6 +367,7 @@ void ec_device_clear_stats(
     device->last_tx_count = 0;
     device->rx_count = 0;
     device->last_rx_count = 0;
+    device->lost_frame_id = 0;
     device->tx_bytes = 0;
     device->last_tx_bytes = 0;
     device->rx_bytes = 0;

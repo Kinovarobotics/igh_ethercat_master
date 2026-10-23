@@ -1127,6 +1127,59 @@ EC_PUBLIC_API int ecrt_master_set_slave_state(
         uint8_t al_state /**< Requested AL state. */
         );
 
+/** Reads the number of frames the master sent and lost.
+ *
+ * The counters cover every device of the master and are never reset. A
+ * frame is lost once one of its datagrams times out, so a frame still in
+ * flight is not counted.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_frame_counters(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint64_t *tx_count, /**< Output: frames sent. */
+        uint64_t *lost_count /**< Output: frames lost. */
+        );
+
+/** Reads registers of a slave's EtherCAT chip.
+ *
+ * Queues the read in the master state machine and blocks until it was
+ * processed.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_read_register(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        uint16_t address, /**< First register address. */
+        uint8_t *data, /**< Output: register contents. */
+        size_t size /**< Number of bytes to read. */
+        );
+
+/** Writes registers of a slave's EtherCAT chip.
+ *
+ * Queues the write in the master state machine and blocks until it was
+ * processed.
+ *
+ * \apiusage{master_any,blocking}
+ *
+ * \retval  0 Success.
+ * \retval <0 Error code.
+ */
+EC_PUBLIC_API int ecrt_master_write_register(
+        ec_master_t *master, /**< EtherCAT master. */
+        uint16_t slave_position, /**< Slave position. */
+        uint16_t address, /**< First register address. */
+        const uint8_t *data, /**< Register contents to write. */
+        size_t size /**< Number of bytes to write. */
+        );
+
 /** Executes an SoE write request.
  *
  * Starts writing an IDN and blocks until the request was processed, or an

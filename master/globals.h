@@ -43,6 +43,13 @@
  */
 #define EC_BYTE_TRANSMISSION_TIME_NS 80
 
+/** Milliseconds an application SDO or register request may wait in its
+ * slave's queue before the slave state machine takes it; a request still
+ * queued then is withdrawn and fails with -ETIMEDOUT. Above the time the
+ * master takes to configure every slave after an activation, during which
+ * a slave's requests wait for its configuration. */
+#define EC_REQUEST_QUEUE_TIMEOUT 10000
+
 /** Number of state machine retries on datagram timeout. */
 #define EC_FSM_RETRIES 3
 
