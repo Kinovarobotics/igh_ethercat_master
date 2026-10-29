@@ -684,6 +684,8 @@ static ATTRIBUTES int ec_ioctl_slave_state(
     }
 
     ec_slave_request_state(slave, data.al_state);
+    /* The master skips a slave with a latched AL status code. */
+    slave->last_al_status_code = 0;
 
     up(&master->master_sem);
     return 0;
@@ -4600,7 +4602,6 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
     ec_foe_request_init(&request, io.file_name);
     if (io.timeout) {
         request.response_timeout = io.timeout;
-        request.issue_timeout = io.timeout;
     }
     ret = ec_foe_request_alloc(&request, io.buffer_size);
     if (ret) {
@@ -4701,7 +4702,6 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
     ec_foe_request_init(&request, io.file_name);
     if (io.timeout) {
         request.response_timeout = io.timeout;
-        request.issue_timeout = io.timeout;
     }
 
     ret = ec_foe_request_alloc(&request, io.buffer_size);

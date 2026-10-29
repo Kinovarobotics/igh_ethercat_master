@@ -88,6 +88,15 @@ void ec_fsm_foe_state_sent_ack(ec_fsm_foe_t *, ec_datagram_t *);
 void ec_fsm_foe_write_start(ec_fsm_foe_t *, ec_datagram_t *);
 void ec_fsm_foe_read_start(ec_fsm_foe_t *, ec_datagram_t *);
 
+static void ec_fsm_foe_prepare_abort(ec_fsm_foe_t *, ec_datagram_t *);
+void ec_fsm_foe_state_abort_sent(ec_fsm_foe_t *, ec_datagram_t *);
+
+/****************************************************************************/
+
+/** FoE error code sent to close a transfer the master aborts ("Not defined").
+ */
+#define EC_FOE_ABORT_ERROR_CODE 0x00008000
+
 /****************************************************************************/
 
 /** Whether the mailbox write of the previous step timed out.
@@ -201,15 +210,19 @@ int ec_fsm_foe_exec(
     }
 
     /* The request's whole-transfer bound, checked between two steps only. */
-    if (ec_foe_request_timed_out(fsm->request)) {
+    if (fsm->state != ec_fsm_foe_state_abort_sent
+            && ec_foe_request_timed_out(fsm->request)) {
         ec_foe_set_tx_error(fsm, FOE_TIMEOUT_ERROR);
         EC_SLAVE_ERR(fsm->slave, "Transfer timeout after %u ms.\n",
                 fsm->request->issue_timeout);
-        fsm->datagram = NULL;
-        return 0;
+    }
+    else {
+        fsm->state(fsm, datagram);
     }
 
-    fsm->state(fsm, datagram);
+    if (fsm->state == ec_fsm_foe_error && fsm->session_open) {
+        ec_fsm_foe_prepare_abort(fsm, datagram);
+    }
 
     if (fsm->state == ec_fsm_foe_end || fsm->state == ec_fsm_foe_error) {
         fsm->datagram = NULL;
@@ -218,6 +231,62 @@ int ec_fsm_foe_exec(
 
     fsm->datagram = datagram;
     return 1;
+}
+
+/****************************************************************************/
+
+/** Send an FoE Error Request so the slave closes a transfer the master
+ * aborts; the error already set is kept.
+ */
+static void ec_fsm_foe_prepare_abort(
+        ec_fsm_foe_t *fsm, /**< FoE statemachine. */
+        ec_datagram_t *datagram /**< Datagram to use. */
+        )
+{
+    uint8_t *data;
+
+    fsm->session_open = 0;
+
+    data = ec_slave_mbox_prepare_send(fsm->slave, datagram,
+            EC_MBOX_TYPE_FOE, EC_FOE_HEADER_SIZE);
+    if (IS_ERR(data)) {
+        EC_SLAVE_WARN(fsm->slave, "Failed to prepare the FoE Error Request"
+                " closing the aborted transfer.\n");
+        return;
+    }
+
+    EC_WRITE_U16(data, EC_FOE_OPCODE_ERR);
+    EC_WRITE_U32(data + 2, EC_FOE_ABORT_ERROR_CODE);
+
+    fsm->state = ec_fsm_foe_state_abort_sent;
+}
+
+/****************************************************************************/
+
+/** State: the FoE Error Request closing an aborted transfer was sent.
+ */
+void ec_fsm_foe_state_abort_sent(
+        ec_fsm_foe_t *fsm, /**< FoE statemachine. */
+        ec_datagram_t *datagram /**< Datagram to use. */
+        )
+{
+#ifdef DEBUG_FOE
+    EC_SLAVE_DBG(fsm->slave, 0, "%s()\n", __func__);
+#endif
+
+    if (fsm->datagram->state != EC_DATAGRAM_RECEIVED
+            || fsm->datagram->working_counter != 1) {
+        EC_SLAVE_WARN(fsm->slave, "FoE Error Request closing the aborted"
+                " transfer not delivered: ");
+        if (fsm->datagram->state != EC_DATAGRAM_RECEIVED) {
+            ec_datagram_print_state(fsm->datagram);
+        }
+        else {
+            ec_datagram_print_wc_error(fsm->datagram);
+        }
+    }
+
+    fsm->state = ec_fsm_foe_error;
 }
 
 /****************************************************************************/
@@ -242,6 +311,8 @@ void ec_fsm_foe_transfer(
 {
     fsm->slave = slave;
     fsm->request = request;
+    fsm->busy_resend = 0;
+    fsm->session_open = 0;
 
     fsm->buffer_offset = 0;
     if (request->dir == EC_DIR_OUTPUT) {
@@ -381,6 +452,7 @@ void ec_fsm_foe_write_start(
         return;
     }
 
+    fsm->session_open = 1;
     fsm->state = ec_fsm_foe_state_wrq_sent;
 }
 
@@ -499,6 +571,8 @@ void ec_fsm_foe_state_ack_read(
             EC_SLAVE_ERR(slave, "Slave is busy.\n");
             return;
         }
+        /* BUSY is no progress: keep the response timer of the first send. */
+        fsm->busy_resend = 1;
         fsm->state = ec_fsm_foe_state_data_sent;
         return;
     }
@@ -521,6 +595,7 @@ void ec_fsm_foe_state_ack_read(
     }
 
     if (opCode == EC_FOE_OPCODE_ERR) {
+        fsm->session_open = 0; /* the slave closed it */
         if (rec_size < 6) {
             ec_foe_set_tx_error(fsm, FOE_OPCODE_ERROR);
             EC_SLAVE_ERR(slave, "Received truncated FoE Error Request"
@@ -622,7 +697,10 @@ void ec_fsm_foe_state_data_sent(
     }
 
     ec_slave_mbox_prepare_check(slave, datagram);
-    fsm->jiffies_start = jiffies;
+    if (!fsm->busy_resend) {
+        fsm->jiffies_start = jiffies;
+    }
+    fsm->busy_resend = 0;
     fsm->state = ec_fsm_foe_state_ack_check;
 }
 
@@ -757,6 +835,7 @@ void ec_fsm_foe_read_start(
         return;
     }
 
+    fsm->session_open = 1;
     fsm->state = ec_fsm_foe_state_rrq_sent;
 }
 
@@ -875,6 +954,7 @@ void ec_fsm_foe_state_data_read(
     }
 
     if (opCode == EC_FOE_OPCODE_ERR) {
+        fsm->session_open = 0; /* the slave closed it */
         fsm->request->error_code = EC_READ_U32(data + 2);
         EC_SLAVE_ERR(slave, "Received FoE Error Request (code 0x%08x).\n",
                 fsm->request->error_code);

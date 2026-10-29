@@ -56,6 +56,8 @@ struct ec_fsm_foe {
     uint32_t last_packet; /**< Current packet is last one to send/receive. */
     uint32_t packet_no; /**< FoE packet number. */
     uint32_t current_size; /**< Size of current packet to send. */
+    uint8_t busy_resend; /**< Resending after BUSY. */
+    uint8_t session_open; /**< The slave holds a transfer this FSM opened. */
 };
 
 /****************************************************************************/
